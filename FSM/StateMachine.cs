@@ -709,7 +709,7 @@ public class StateMachine<T> where T : Enum
     {
         foreach (var transition in activeTransitions)
         {
-            if (!transition.Guard?.Invoke(this) ?? true)
+            if (!transition.Guard?.Invoke(this) ?? false)
                 continue;
             
             float requiredTime = transition.OverrideMinTime > 0f ? transition.OverrideMinTime : currentState.MinTime;
