@@ -23,7 +23,7 @@ func _init(new_id: int) -> void:
 	id = new_id
 
 func add_transition(to: int) -> Transition:
-	if transitions.find_custom(func(t): return t.to == to) != 0:
+	if transitions.find_custom(func(t): return t.to == to) != -1:
 		return null
 	var transition: Transition = Transition.new(id, to)
 	transitions.append(transition)
