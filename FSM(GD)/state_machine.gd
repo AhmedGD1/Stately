@@ -315,10 +315,14 @@ func _check_event_transitions(event_name: String) -> void:
 		if transition.event_name != event_name:
 			continue
 		
+		var guard_passed: bool = true
+		if transition.guard.is_valid():
+			guard_passed = transition.guard.call()
+		
 		var required_time: float = transition.override_min_time if transition.override_min_time > 0.0 else current_state.min_time
 		var time_requirement_met: bool = state_time > required_time || transition.force_instant_transition
 		
-		if time_requirement_met:
+		if guard_passed && time_requirement_met:
 			_change_state_internal(transition.to)
 			transition_triggered.emit(transition.from, transition.to)
 			if transition.triggered.is_valid(): transition.triggered.call()
