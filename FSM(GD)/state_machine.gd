@@ -16,7 +16,7 @@ signal timeout_blocked(id: int)
 signal state_timeout(id: int)
 
 const MAX_QUEUED_TRANSITIONS: int = 50
-const TRANSITION_PER_DATA: String = "__transition_data__"
+const TRANSITION_DATA_ID: String = "__transition_data__"
 
 var states: Dictionary[int, State] = {}
 var global_data: Dictionary[String, Variant] = {}
@@ -57,10 +57,9 @@ func add_state(id: int) -> State:
 	states[id] = state
 	
 	if !initialized:
-		initial_id = id
-		initialized = true
+		set_initial_id(id)
 	
-	state.set_restart(initial_id)
+	state.set_timeout_id(initial_id)
 	return state
 
 func start() -> void:
@@ -73,19 +72,15 @@ func remove_state(id: int) -> bool:
 		return false
 	
 	if initial_id == id:
-		initialized = false
+		var new_id: int = states.keys().front()
+		set_initial_id(new_id)
 	
-	if current_state != null && current_state.id == id:
-		if !states.is_empty():
-			set_initial_id(states.values().front().id)
-			reset()
-		else:
-			current_state = null
-			initialized = false
-			has_previous_state = false
+	if current_state.id == id:
+		reset()
 	
-	states[id].transitions = states[id].transitions.filter(func(t: Transition): return t.to != id)
-	global_transitions = global_transitions.filter(func(t: Transition): return t.to != id)
+	for state: State in states.values():
+		state.transitions = state.transitions.filter(func(t: Transition) -> bool: return t.to != id)
+	global_transitions = global_transitions.filter(func(t: Transition) -> bool: return t.to != id)
 	
 	states.erase(id)
 	sort_transitions()
@@ -113,14 +108,14 @@ func set_initial_id(id: int) -> void:
 	initialized = true
 
 func restart_current_state(ignore_enter: bool = false, ignore_exit: bool = true) -> void:
-	if current_state == null:
-		push_warning("Can't restart current state as it's null")
+	if current_state.is_locked():
+		push_warning("Can't restart current state with id: %s since it's locked !" % states_enum.keys()[current_state.id])
 		return
 	
 	reset_state_time()
 	
 	if !ignore_enter && current_state.enter.is_valid(): current_state.enter.call()
-	if !ignore_exit && current_state.exit.is_valid() && !current_state.is_locked(): current_state.exit.call()
+	if !ignore_exit && current_state.exit.is_valid(): current_state.exit.call()
 
 func reset_state_time() -> void:
 	last_state_time = state_time
@@ -134,13 +129,12 @@ func try_change_state(id: int, condition: Callable = Callable(), data: Variant =
 		return false
 	
 	if data != null:
-		set_data(TRANSITION_PER_DATA, data)
+		set_data(TRANSITION_DATA_ID, data)
 	_change_state_internal(id)
 	return true
 
 func try_go_back() -> bool:
 	if !has_previous_state || !states.has(previous_id) || current_state.is_locked():
-		push_error("Can't go back to previous state")
 		return false
 	
 	_change_state_internal(previous_id)
@@ -180,7 +174,6 @@ func _change_state_internal(id, ignore_exit: bool = false) -> void:
 	if initialized:
 		state_changed.emit(previous_id, current_state.id)
 	
-	# Process pending transitions one at a time
 	if pending_transitions.size() > 0:
 		var next_id = pending_transitions.pop_front()
 		is_transitioning = false
@@ -188,7 +181,7 @@ func _change_state_internal(id, ignore_exit: bool = false) -> void:
 	else:
 		is_transitioning = false
 	
-	remove_global_data(TRANSITION_PER_DATA)
+	remove_global_data(TRANSITION_DATA_ID)
 
 func _safe_call(callable: Callable) -> bool:
 	if callable.is_valid():
@@ -210,6 +203,10 @@ func add_transition(from: int, to: int) -> Transition:
 	sort_transitions()
 	return transition
 
+func add_similar_transitions(from: Array[int], to: int, condition: Callable) -> void:
+	for i: int in range(from.size()):
+		add_transition(i, to).set_condition(condition)
+
 func add_global_transition(to: int) -> Transition:
 	if !states.has(to):
 		push_error("To State does not exist")
@@ -226,12 +223,9 @@ func remove_transition(from: int, to: int) -> bool:
 		return false
 	
 	var original_size: int = states[from].transitions.size()
-	states[from].transitions = states[from].transitions.filter(func(t: Transition): return t.to != to)
+	states[from].transitions = states[from].transitions.filter(func(t: Transition) -> bool: return t.to != to)
 	
 	var removed: int = original_size - states[from].transitions.size()
-	
-	if removed == 0:
-		push_warning("No transition found between: {%s} -> {%s}" % [states_enum.keys()[from], states_enum.keys()[to]])
 	
 	sort_transitions()
 	return removed > 0
@@ -239,14 +233,11 @@ func remove_transition(from: int, to: int) -> bool:
 func remove_global_transition(to: int) -> bool:
 	var original_size: int = global_transitions.size()
 	
-	global_transitions = global_transitions.filter(func(t: Transition): return t.to != to)
-	
-	if global_transitions.size() == original_size:
-		push_warning("No global transition was found to state: %s" % [states_enum.keys()[to]])
-		return false
+	global_transitions = global_transitions.filter(func(t: Transition) -> bool: return t.to != to)
+	var removed: int = original_size - global_transitions.size()
 	
 	sort_transitions()
-	return true
+	return removed > 0
 
 func clear_transitions_from(id: int) -> void:
 	if !states.has(id):
@@ -309,7 +300,7 @@ func _check_event_transitions(event_name: String) -> void:
 	is_processing_event = true
 	
 	for transition: Transition in cached_sorted_transitions:
-		if transition.event_name == null || transition.event_name.is_empty():
+		if transition.event_name.is_empty():
 			continue
 		
 		if transition.event_name != event_name:
@@ -336,11 +327,14 @@ func process(mode: StateMachine.ProcessMode, delta: float) -> void:
 	if paused || current_state == null:
 		return
 	
-	if current_state.process_mode == mode:
+	if current_state.get_process_mode() == mode:
 		state_time += delta
-		if current_state.update.is_valid():
-			current_state.update.call(delta)
+		_execute_state_update(delta)
 		_check_transitions()
+
+func _execute_state_update(delta: float) -> void:
+	if current_state.update.is_valid():
+		current_state.update.call(delta)
 
 func _check_transitions() -> void:
 	if current_state == null: return
@@ -350,22 +344,7 @@ func _check_transitions() -> void:
 	var timeout_triggered: bool = current_state.timeout > 0.0 && state_time >= current_state.timeout
 	
 	if timeout_triggered:
-		if current_state.is_fully_locked():
-			timeout_blocked.emit(current_state.id)
-			return
-		
-		var restart_id: int = current_state.restart_id
-		var from_id: int = current_state.id
-		
-		if !states.has(restart_id):
-			push_error("Restart id: %s does not exist for state: %s" % [restart_id, states_enum.keys()[from_id]])
-			return
-		
-		if current_state.callback.is_valid():
-			current_state.callback.call()
-		state_timeout.emit(from_id)
-		_change_state_internal(restart_id)
-		transition_triggered.emit(from_id, restart_id)
+		_on_state_timeout_triggered()
 		return
 	
 	if current_state.transition_blocked():
@@ -375,6 +354,24 @@ func _check_transitions() -> void:
 	
 	if !cached_sorted_transitions.is_empty():
 		_check_transition_loop()
+
+func _on_state_timeout_triggered() -> void:
+	if current_state.is_fully_locked():
+		timeout_blocked.emit(current_state.id)
+		return
+	
+	var timeout_id: int = current_state.timeout_id
+	var from_id: int = current_state.id
+	
+	if !states.has(timeout_id):
+		push_error("State with id: %s , does not have a timeout id" % from_id)
+		return
+	
+	if current_state.callback.is_valid():
+		current_state.callback.call()
+	state_timeout.emit(from_id)
+	transition_triggered.emit(from_id, timeout_id)
+	_change_state_internal(timeout_id)
 
 func _check_transition_loop() -> void:
 	for transition: Transition in cached_sorted_transitions:
@@ -417,10 +414,16 @@ func remove_global_data(key: String) -> bool:
 	return true
 
 func get_data(key: String) -> Variant:
-	return global_data.get(key, null)
+	if !global_data.has(key):
+		push_error("Data with key: %s, does not exist" % key)
+		return null
+	return global_data[key]
 
 func get_per_transition_data() -> Variant:
-	return global_data.get(TRANSITION_PER_DATA, null)
+	return global_data.get(TRANSITION_DATA_ID, null)
+
+func get_data_safe(id: String, default = null) -> Variant:
+	return global_data.get(id, default)
 
 func is_active() -> bool:
 	return !paused
@@ -493,13 +496,60 @@ func has_global_transition(to: int) -> bool:
 	return global_transitions.any(func(t): return t.to == to)
 
 func is_in_state_with_tag(tag: String) -> bool:
-	return current_state.tags.has(tag) if current_state != null else false
+	return current_state != null && current_state.tags.has(tag)
 
 func is_current_state(id: int) -> bool:
 	return current_state.id == id
 
 func is_previous_state(id: int) -> bool:
-	return previous_id == id if has_previous_state else false
+	return previous_id == id && has_previous_state
+
+func get_state_transitions_with_tag(tag: String) -> Array[Transition]:
+	var index: int = states.values().find_custom(func(s: State) -> bool: return s.tags.has(tag))
+	return states[index].transitions
+
+func find_transitions_to(to: int) -> Array[Transition]:
+	var transitions: Array[Transition] = []
+	
+	for state: State in states.values():
+		var index: int = state.transitions.find_custom(func(t: Transition) -> bool: return t.to == to)
+		
+		if index != -1:
+			transitions.append(state.transitions[index])
+	return transitions
+
+func can_transition_to(id: int) -> bool:
+	if current_state == null || current_state.is_locked():
+		return false
+	return has_transition(current_state.id, id) || has_global_transition(id)
+
+func get_available_transitions() -> Array[int]:
+	if current_state == null:
+		return []
+	
+	var result: Array[int] = []
+	
+	for t: Transition in current_state.transitions:
+		result.append(t.to)
+	
+	for t: Transition in global_transitions:
+		result.append(t.to)
+	
+	return result
+
+func setup_state(id: int) -> State:
+	return get_state(id) if states.has(id) else add_state(id)
+
+func get_transition_count(id: int) -> int:
+	if !states.has(id):
+		return -1
+	return states[id].transitions.size()
+
+func have_event_listener(event_name: String) -> bool:
+	return event_listeners.has(event_name)
+
+func clear_pending_transitions() -> void:
+	pending_transitions.clear()
 
 func debug_current_transition() -> String:
 	var prev: String = states_enum.keys()[previous_id]
