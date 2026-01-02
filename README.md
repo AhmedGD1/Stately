@@ -723,9 +723,6 @@ public partial class MenuManager : Control
 | `OnTrigger(Action)` | Set trigger callback |
 | `ForceInstant()` | Ignore min time |
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
 ## 📄 License
 
