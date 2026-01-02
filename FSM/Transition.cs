@@ -36,6 +36,10 @@ public class Transition<T> where T : Enum
 
     public bool ForceInstantTransition { get; private set; }
 
+    public Cooldown Cooldown => cooldown;
+
+    private readonly Cooldown cooldown = new();
+
     public Transition(T from, T to)
     {
         From = from;
@@ -96,6 +100,27 @@ public class Transition<T> where T : Enum
     {
         ForceInstantTransition = false;
         return this;
+    }
+
+    public Transition<T> SetCooldown(float duration)
+    {
+        cooldown.SetDuration(duration);
+        return this;
+    }
+
+    public bool IsOnCooldown()
+    {
+        return cooldown.IsActive;
+    }
+
+    internal void StartCooldown()
+    {
+        cooldown.Start();
+    }
+
+    internal void UpdateCooldown(float delta)
+    {
+        cooldown.Update(delta);
     }
 
     internal static int Compare(Transition<T> transition1, Transition<T> transition2)
