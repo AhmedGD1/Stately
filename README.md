@@ -1,22 +1,43 @@
-# Godot FSM - Complete Usage Guide
+# Godot FSM 🎮
 
-## Table of Contents
-1. [Quick Start](#quick-start)
-2. [Basic Concepts](#basic-concepts)
-3. [State Configuration](#state-configuration)
-4. [Transitions](#transitions)
-5. [Events](#events)
-6. [Advanced Features](#advanced-features)
-7. [Best Practices](#best-practices)
-8. [Complete Examples](#complete-examples)
+A powerful, production-ready Finite State Machine implementation for C# in Godot. Built for complex game logic, AI behaviors, and any system requiring robust state management.
 
----
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Godot](https://img.shields.io/badge/Godot-4.x-blue.svg)
+![C#](https://img.shields.io/badge/C%23-10.0-purple.svg)
 
-## Quick Start
+## ✨ Features
+
+- 🎯 **Type-Safe States** - Generic enum-based state system
+- 🔄 **Flexible Transitions** - Condition-based, event-driven, and global transitions
+- ⏱️ **Cooldown System** - Rate-limit states and transitions
+- 📚 **State History** - Navigate backward through previous states with configurable capacity
+- 🛡️ **Guard Conditions** - Pre-flight validation before transitions
+- ⚡ **Priority System** - Control transition evaluation order
+- 🔒 **State Locking** - Prevent unwanted transitions (full or transition-only)
+- 🏷️ **Tags & Data** - Attach metadata to states and query by tags
+- ⏰ **Timeouts** - Automatic state transitions after duration
+- 📢 **Event System** - Decouple state logic with event-driven architecture
+- 🔁 **Process Modes** - Separate Idle and Physics (Fixed) update loops
+- 📊 **Transition Data** - Pass data between states during transitions
+
+## 📦 Installation
+
+1. Download or clone this repository
+2. Copy the `Godot.FSM` folder into your Godot C# project
+3. Ensure your project has C# support enabled
+4. Add `using Godot.FSM;` to your scripts
+
+## 🚀 Quick Start
+
+### Basic Setup
 
 ```csharp
-// 1. Define your state enum
-public enum PlayerState
+using Godot;
+using Godot.FSM;
+
+// Define your states as an enum
+public enum CharacterState
 {
     Idle,
     Walking,
@@ -25,674 +46,523 @@ public enum PlayerState
     Falling
 }
 
-// 2. Create and configure the state machine
-var fsm = new StateMachine<PlayerState>();
-
-// 3. Add states with callbacks
-fsm.AddState(PlayerState.Idle)
-    .OnEnter(() => GD.Print("Entered Idle"))
-    .OnUpdate((delta) => GD.Print($"Idling... {delta}"))
-    .OnExit(() => GD.Print("Left Idle"));
-
-fsm.AddState(PlayerState.Walking);
-fsm.AddState(PlayerState.Running);
-
-// 4. Add transitions
-fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetCondition(fsm => Input.IsActionPressed("move"));
-
-fsm.AddTransition(PlayerState.Walking, PlayerState.Running)
-    .SetCondition(fsm => Input.IsActionPressed("sprint"));
-
-// 5. Start the machine
-fsm.Start();
-
-// 6. Update every frame
-public override void _Process(double delta)
+public partial class Character : CharacterBody3D
 {
-    fsm.Process(FSMProcessMode.Idle, (float)delta);
-}
+    private StateMachine<CharacterState> fsm;
 
-// 7. Clean up when done
-public override void _ExitTree()
-{
-    fsm.Dispose();
+    public override void _Ready()
+    {
+        // Create the state machine
+        fsm = new StateMachine<CharacterState>();
+
+        // Add states with callbacks
+        fsm.AddState(CharacterState.Idle)
+            .OnEnter(() => GD.Print("Now idle"))
+            .OnUpdate(delta => HandleIdleMovement(delta))
+            .OnExit(() => GD.Print("Leaving idle"));
+
+        fsm.AddState(CharacterState.Walking)
+            .OnUpdate(delta => HandleWalking(delta))
+            .SetMinTime(0.1f); // Must walk for at least 0.1s
+
+        fsm.AddState(CharacterState.Running)
+            .OnUpdate(delta => HandleRunning(delta));
+
+        // Add transitions with conditions
+        fsm.AddTransition(CharacterState.Idle, CharacterState.Walking)
+            .SetCondition(sm => GetMovementInput() > 0);
+
+        fsm.AddTransition(CharacterState.Walking, CharacterState.Running)
+            .SetCondition(sm => Input.IsActionPressed("sprint"))
+            .SetGuard(sm => !IsExhausted());
+
+        fsm.AddTransition(CharacterState.Running, CharacterState.Walking)
+            .SetCondition(sm => !Input.IsActionPressed("sprint"));
+
+        // Start the state machine
+        fsm.Start();
+    }
+
+    public override void _Process(double delta)
+    {
+        // Update the state machine in _Process
+        fsm.Process(FSMProcessMode.Idle, (float)delta);
+        fsm.UpdateCooldownTimers((float)delta);
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        // Or update in _PhysicsProcess for physics-based logic
+        fsm.Process(FSMProcessMode.Fixed, (float)delta);
+    }
+
+    private float GetMovementInput() => Input.GetAxis("move_left", "move_right");
+    private bool IsExhausted() => false; // Your stamina logic here
+    private void HandleIdleMovement(float delta) { /* ... */ }
+    private void HandleWalking(float delta) { /* ... */ }
+    private void HandleRunning(float delta) { /* ... */ }
 }
 ```
 
----
-
-## Basic Concepts
+## 📖 Core Concepts
 
 ### States
-A **State** represents a distinct behavior or condition. Each state can have:
-- **Enter callback**: Runs once when entering the state
-- **Update callback**: Runs every frame while in the state
-- **Exit callback**: Runs once when leaving the state
-- **Timeout**: Automatic transition after X seconds
-- **MinTime**: Minimum time before transitions are allowed
-- **Tags**: String labels for querying states
-- **Data**: Key-value storage for state-specific data
-- **Process Mode**: Idle (_Process) or Fixed (_PhysicsProcess)
-- **Lock Mode**: Prevents transitions (Full, Transition, or None)
 
-### Transitions
-A **Transition** defines when and how to move between states. Features:
-- **Condition**: Function that returns true to trigger transition
-- **Guard**: Pre-check that must pass before evaluating condition
-- **Event**: Trigger on named event (e.g., "jump_pressed")
-- **Priority**: Higher priority transitions are checked first
-- **MinTime override**: Override state's minimum time for this transition
-- **OnTriggered callback**: Runs when transition fires
-
-### State Machine
-The **StateMachine** orchestrates everything:
-- Manages states and transitions
-- Tracks current/previous state
-- Processes frame updates
-- Handles events
-- Stores global data
-- Provides introspection methods
-
----
-
-## State Configuration
-
-### Basic State Setup
+States represent distinct behaviors or modes in your system. Each state can have:
+- Enter/Update/Exit callbacks
+- Minimum time requirement
+- Timeout with automatic transition
+- Cooldown period after exiting
+- Custom tags and data
+- Lock modes
 
 ```csharp
-fsm.AddState(PlayerState.Idle)
+fsm.AddState(EnemyState.Patrol)
     .OnEnter(() => {
-        animPlayer.Play("idle");
-        velocity = Vector2.Zero;
+        GD.Print("Starting patrol");
+        PlayAnimation("patrol");
     })
-    .OnUpdate((delta) => {
-        // Runs every frame while idle
-        CheckForInput();
+    .OnUpdate(delta => {
+        MoveAlongPatrolPath(delta);
+        CheckForPlayer();
     })
     .OnExit(() => {
-        GD.Print("No longer idle");
+        StopAnimation();
+    })
+    .SetMinTime(2f)                      // Can't leave for 2 seconds
+    .SetTimeout(30f)                     // Auto-transition after 30s
+    .SetTimeoutId(EnemyState.Idle)       // Where to go on timeout
+    .OnTimeout(() => GD.Print("Patrol timeout"))
+    .SetCooldown(5f)                     // 5s cooldown after leaving
+    .AddTags("movement", "ai")           // Tags for queries
+    .SetData("patrol_speed", 3.5f)       // Custom data
+    .Lock(FSMLockMode.Transition);       // Can't be interrupted
+```
+
+### Transitions
+
+Transitions define how and when to move between states.
+
+#### Basic Transitions
+
+```csharp
+// Simple condition-based transition
+fsm.AddTransition(StateA, StateB)
+    .SetCondition(sm => Health < 50);
+
+// With priority (higher = evaluated first)
+fsm.AddTransition(StateA, StateC)
+    .SetCondition(sm => Health < 20)
+    .SetPriority(10);
+
+// With cooldown (can't retrigger for 3 seconds)
+fsm.AddTransition(StateA, StateB)
+    .SetCondition(sm => IsTriggered())
+    .SetCooldown(3f);
+
+// Callback when transition occurs
+fsm.AddTransition(StateA, StateB)
+    .SetCondition(sm => ShouldTransition())
+    .OnTrigger(() => GD.Print("Transitioned!"));
+```
+
+#### Guards and Conditions
+
+**Guards** are checked **first**, before time requirements:
+- Use for early rejection (Is player alive? Is feature unlocked?)
+- Return `false` to skip this transition entirely
+- Checked for both regular and event-based transitions
+
+**Conditions** are checked **after** guards and timing:
+- Use for the actual transition trigger (Health low? Enemy visible?)
+- Return `true` to trigger the transition
+- Only used for regular transitions (not event-based)
+
+```csharp
+fsm.AddTransition(Idle, Attack)
+    .SetGuard(sm => weaponEquipped && !isStunned)  // Checked first
+    .SetCondition(sm => enemyInRange);              // Then checked
+```
+
+#### Event-Based Transitions
+
+```csharp
+// Define event-based transition
+fsm.AddTransition(Idle, Hurt)
+    .OnEvent("damage_taken")
+    .SetGuard(sm => !IsInvulnerable());
+
+// Trigger the event from anywhere
+fsm.SendEvent("damage_taken");
+
+// Listen to events
+fsm.OnEvent("damage_taken", () => {
+    PlayHurtSound();
+    FlashRed();
+});
+```
+
+#### Global Transitions
+
+Global transitions work from **any state**:
+
+```csharp
+// Death transition available from anywhere
+fsm.AddGlobalTransition(PlayerState.Dead)
+    .SetCondition(sm => Health <= 0)
+    .SetMaxPriority();  // Highest priority
+
+// Pause transition
+fsm.AddGlobalTransition(PlayerState.Paused)
+    .OnEvent("pause_pressed");
+```
+
+#### Special Transitions
+
+```csharp
+// Self-transition (stays in same state but triggers callbacks)
+fsm.AddSelfTransition(State.Reloading)
+    .SetCondition(sm => Input.IsActionJustPressed("reload"));
+
+// Reset transition (returns to initial state)
+fsm.AddResetTransition(State.GameOver);
+
+// Multiple states to one target
+fsm.AddTransitions(
+    new[] { State.Walking, State.Running, State.Crouching },
+    State.Jumping,
+    sm => Input.IsActionJustPressed("jump")
+);
+```
+
+### State History
+
+Navigate through previous states:
+
+```csharp
+// Configure history
+fsm.SetHistoryActive(true);
+fsm.StateHistory.SetCapacity(50);  // Max 50 entries
+
+// Go back one state
+if (fsm.CanGoBack())
+    fsm.GoBack();
+
+// Go back multiple steps
+fsm.GoBack(3);
+
+// Go back to specific state
+fsm.GoBackToState(MenuState.MainMenu);
+
+// Check history
+var history = fsm.StateHistory.GetRecentHistory(5);
+foreach (var entry in history)
+{
+    GD.Print($"Was in {entry.StateId} for {entry.TimeSpent}s at {entry.TimeStamp}");
+}
+
+// Find how many steps back a state is
+int steps = fsm.FindInHistory(MenuState.Settings);
+if (steps > 0)
+    GD.Print($"Settings menu is {steps} steps back");
+```
+
+### State Locking
+
+Prevent unwanted state changes:
+
+```csharp
+// Full lock - can't exit state at all
+fsm.AddState(State.Cutscene)
+    .Lock(FSMLockMode.Full);
+
+// Transition lock - can timeout but can't transition normally
+fsm.AddState(State.Attacking)
+    .Lock(FSMLockMode.Transition)
+    .SetTimeout(0.5f)
+    .SetTimeoutId(State.Idle);
+
+// Unlock state
+fsm.GetState(State.Cutscene).Unlock();
+```
+
+### Cooldowns
+
+Prevent rapid state or transition changes:
+
+```csharp
+// State cooldown (can't enter for X seconds after leaving)
+fsm.AddState(State.Dash)
+    .SetCooldown(2f);
+
+// Transition cooldown (can't trigger for X seconds)
+fsm.AddTransition(State.Idle, State.Attack)
+    .SetCooldown(0.5f);
+
+// Check and reset cooldowns
+if (fsm.IsStateOnCooldown(State.Dash))
+    GD.Print("Dash is on cooldown");
+
+fsm.ResetStateCooldown(State.Dash);
+fsm.ResetAllCooldowns();
+
+// Get active cooldown count
+int active = fsm.GetActiveCooldownCount();
+```
+
+### Tags and Data
+
+Organize and query states:
+
+```csharp
+// Add tags to states
+fsm.AddState(State.Swimming)
+    .AddTags("movement", "water", "slow");
+
+fsm.AddState(State.Diving)
+    .AddTags("movement", "water", "submerged");
+
+// Query by tag
+if (fsm.IsInStateWithTag("water"))
+    ApplyWaterPhysics();
+
+var waterStates = fsm.GetStatesWithTag("water");
+
+// Store data on states
+fsm.AddState(State.Walking)
+    .SetData("speed", 5.0f)
+    .SetData("animation", "walk");
+
+// Retrieve data
+if (fsm.GetState(State.Walking).TryGetData("speed", out float speed))
+    Velocity = Forward * speed;
+
+// Global data (shared across all states)
+fsm.SetData("player_health", 100);
+if (fsm.TryGetData("player_health", out int health))
+    GD.Print($"Health: {health}");
+```
+
+### Passing Data Between States
+
+```csharp
+// Pass data during transition
+var damageInfo = new DamageInfo { Amount = 25, Source = "Enemy" };
+fsm.TryChangeState(State.Hurt, data: damageInfo);
+
+// Retrieve in the target state's OnEnter
+fsm.AddState(State.Hurt)
+    .OnEnter(() => {
+        var damage = fsm.GetPerTransitionData<DamageInfo>();
+        if (damage != null)
+            ApplyDamage(damage.Amount);
     });
 ```
 
 ### Timeouts
 
-```csharp
-// Auto-transition to Walking after 3 seconds of being Idle
-fsm.AddState(PlayerState.Idle)
-    .SetTimeout(3.0f)
-    .SetTimeoutId(PlayerState.Walking)
-    .OnTimeout(() => GD.Print("Idle timeout reached!"));
-```
-
-### Minimum Time
+Automatic transitions after a duration:
 
 ```csharp
-// Must be in Running state for at least 0.5 seconds before transitioning out
-fsm.AddState(PlayerState.Running)
-    .SetMinTime(0.5f);
+// State with timeout
+fsm.AddState(State.Invincible)
+    .SetTimeout(3f)                      // 3 seconds
+    .SetTimeoutId(State.Normal)          // Return to Normal
+    .OnTimeout(() => {
+        GD.Print("Invincibility expired");
+    });
+
+// Get remaining time
+float remaining = fsm.GetRemainingTime();
+float progress = fsm.GetTimeoutProgress(); // 0.0 to 1.0
 ```
+
+## 🎮 Advanced Usage
 
 ### Process Modes
 
-```csharp
-// This state only updates during _PhysicsProcess
-fsm.AddState(PlayerState.Falling)
-    .SetProcessMode(FSMProcessMode.Fixed)
-    .OnUpdate((delta) => {
-        // Physics calculations here
-        ApplyGravity(delta);
-    });
+Separate logic for different update loops:
 
-// In your node:
+```csharp
+// Configure states for specific process modes
+fsm.AddState(State.Movement)
+    .SetProcessMode(FSMProcessMode.Fixed)  // Physics
+    .OnUpdate(delta => HandlePhysics(delta));
+
+fsm.AddState(State.UI)
+    .SetProcessMode(FSMProcessMode.Idle)   // Frame
+    .OnUpdate(delta => UpdateUI(delta));
+
+// In your node
+public override void _Process(double delta)
+{
+    fsm.Process(FSMProcessMode.Idle, (float)delta);
+    fsm.UpdateCooldownTimers((float)delta);
+}
+
 public override void _PhysicsProcess(double delta)
 {
     fsm.Process(FSMProcessMode.Fixed, (float)delta);
 }
 ```
 
-### State Locking
+### Manual State Changes
 
 ```csharp
-// Full lock: No transitions allowed, timeout blocked
-fsm.AddState(PlayerState.Attacking)
-    .Lock(FSMLockMode.Full)
-    .OnEnter(() => attackAnimation.Play())
-    .OnUpdate((delta) => {
-        if (attackAnimation.Finished)
-            GetCurrentState().Unlock();
-    });
+// Try to change state (respects locks and min time)
+bool success = fsm.TryChangeState(State.Jumping);
 
-// Transition lock: Can timeout but can't transition via conditions
-fsm.AddState(PlayerState.Stunned)
-    .Lock(FSMLockMode.Transition)
-    .SetTimeout(2.0f)
-    .SetTimeoutId(PlayerState.Idle);
+// Force state change with data
+var jumpData = new JumpInfo { Height = 5f };
+fsm.TryChangeState(State.Jumping, data: jumpData);
+
+// Change with condition
+fsm.TryChangeState(State.Running, 
+    condition: () => StaminaAvailable());
+
+// Restart current state
+fsm.RestartCurrentState(callEnter: true, callExit: false);
 ```
 
-### Tags and Data
+### State Machine Events
+
+Subscribe to state machine events:
 
 ```csharp
-// Add tags for querying
-fsm.AddState(PlayerState.Walking)
-    .AddTags("movement", "grounded");
+// Listen to state changes
+fsm.StateChanged += (from, to) => {
+    GD.Print($"Changed from {from} to {to}");
+    UpdateAnimator(to);
+};
 
-fsm.AddState(PlayerState.Running)
-    .AddTags("movement", "grounded", "fast");
+// Listen to transitions
+fsm.TransitionTriggered += (from, to) => {
+    GD.Print($"Transition triggered: {from} -> {to}");
+};
 
-// Store state-specific data
-fsm.AddState(PlayerState.Attacking)
-    .SetData("damage", 10)
-    .SetData("attackSpeed", 1.5f);
+// Listen to timeouts
+fsm.StateTimeout += (stateId) => {
+    GD.Print($"State {stateId} timed out");
+};
 
-// Query later
-if (fsm.IsInStateWithTag("movement"))
-{
-    // Player is moving
-}
-
-var state = fsm.GetState(PlayerState.Attacking);
-if (state.TryGetData<int>("damage", out var dmg))
-{
-    ApplyDamage(dmg);
-}
+// Listen to blocked timeouts
+fsm.TimeoutBlocked += (stateId) => {
+    GD.Print($"Timeout blocked for {stateId} (cooldown or lock)");
+};
 ```
 
----
-
-## Transitions
-
-### Condition-Based Transitions
-
-```csharp
-// Basic condition
-fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetCondition(fsm => Input.IsActionPressed("move"));
-
-// Complex condition with state machine access
-fsm.AddTransition(PlayerState.Walking, PlayerState.Running)
-    .SetCondition(fsm => {
-        bool sprintPressed = Input.IsActionPressed("sprint");
-        bool hasStamina = fsm.TryGetData("stamina", out float s) && s > 10;
-        return sprintPressed && hasStamina;
-    });
-```
-
-### Guard vs Condition
-
-**Guards** are checked FIRST and should be used for quick pre-validation:
-```csharp
-fsm.AddTransition(PlayerState.Idle, PlayerState.Jumping)
-    .SetGuard(fsm => IsOnGround()) // Fast pre-check
-    .SetCondition(fsm => Input.IsActionJustPressed("jump")); // Actual trigger
-```
-
-**Think of it as:**
-- **Guard**: "Can this transition even be considered?"
-- **Condition**: "Should this transition happen now?"
-
-### Event-Based Transitions
-
-```csharp
-// Transition triggers when "jump" event is sent
-fsm.AddTransition(PlayerState.Idle, PlayerState.Jumping)
-    .OnEvent("jump")
-    .SetGuard(fsm => IsOnGround());
-
-// Elsewhere in your code:
-if (Input.IsActionJustPressed("jump"))
-{
-    fsm.SendEvent("jump");
-}
-```
-
-### Priority-Based Transitions
-
-```csharp
-// Higher priority transitions are checked first
-fsm.AddTransition(PlayerState.Any, PlayerState.Death)
-    .SetMaxPriority() // Checked before everything else
-    .SetCondition(fsm => health <= 0);
-
-fsm.AddTransition(PlayerState.Idle, PlayerState.Talking)
-    .SetPriority(100) // High priority
-    .SetCondition(fsm => npcNearby);
-
-fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetPriority(1) // Low priority (default is 0)
-    .SetCondition(fsm => Input.IsActionPressed("move"));
-```
-
-### Global Transitions
-
-```csharp
-// Can trigger from ANY state
-fsm.AddGlobalTransition(PlayerState.Death)
-    .SetCondition(fsm => health <= 0);
-
-fsm.AddGlobalTransition(PlayerState.Paused)
-    .OnEvent("pause");
-```
-
-### Instant Transitions
-
-```csharp
-// Ignores MinTime requirements
-fsm.AddTransition(PlayerState.Running, PlayerState.Falling)
-    .ForceInstant()
-    .SetCondition(fsm => !IsOnGround());
-```
-
-### Transition Callbacks
-
-```csharp
-fsm.AddTransition(PlayerState.Idle, PlayerState.Attacking)
-    .SetCondition(fsm => Input.IsActionJustPressed("attack"))
-    .OnTrigger(() => {
-        GD.Print("Attack initiated!");
-        PlayAttackSound();
-    });
-```
-
----
-
-## Events
-
-### Sending and Listening
-
-```csharp
-// Register event listener
-fsm.OnEvent("player_damaged", () => {
-    GD.Print("Player took damage!");
-    FlashScreen();
-});
-
-// Send event
-public void TakeDamage(int amount)
-{
-    health -= amount;
-    fsm.SendEvent("player_damaged");
-}
-
-// Events are queued and processed during the next Process() call
-```
-
-### Event-Based Transitions
-
-```csharp
-fsm.AddState(PlayerState.Idle);
-fsm.AddState(PlayerState.Attacking);
-
-fsm.AddTransition(PlayerState.Idle, PlayerState.Attacking)
-    .OnEvent("attack_input")
-    .SetGuard(fsm => !isStunned);
-
-// In your input handler:
-if (Input.IsActionJustPressed("attack"))
-{
-    fsm.SendEvent("attack_input");
-}
-```
-
-### Event Reentrancy
-
-Events sent during event processing are automatically handled:
-
-```csharp
-fsm.OnEvent("combo_1", () => {
-    GD.Print("First attack!");
-    fsm.SendEvent("combo_2"); // This will also process
-});
-
-fsm.OnEvent("combo_2", () => {
-    GD.Print("Second attack!");
-});
-
-fsm.SendEvent("combo_1");
-// Output: "First attack!" then "Second attack!"
-```
-
----
-
-## Advanced Features
-
-### Per-Transition Data Passing
-
-```csharp
-// Store data during transition
-fsm.TryChangeState(PlayerState.Damaged, data: new DamageInfo {
-    Amount = 50,
-    Source = "Enemy",
-    DamageType = "Fire"
-});
-
-// Retrieve in Enter callback
-fsm.AddState(PlayerState.Damaged)
-    .OnEnter(() => {
-        var damageInfo = fsm.GetPerTransitionData<DamageInfo>();
-        if (damageInfo != null)
-        {
-            health -= damageInfo.Amount;
-            GD.Print($"Took {damageInfo.Amount} {damageInfo.DamageType} damage!");
-        }
-    });
-```
-
-### Global Data Storage
-
-```csharp
-// Store persistent data across states
-fsm.SetData("combo_count", 0);
-fsm.SetData("last_attack_time", Time.GetTicksMsec());
-
-// Retrieve anywhere
-if (fsm.TryGetData("combo_count", out int count))
-{
-    GD.Print($"Current combo: {count}");
-}
-```
-
-### State History
-
-```csharp
-// Check previous state
-if (fsm.IsPreviousState(PlayerState.Running))
-{
-    // Player was running before current state
-    PlayStopRunningAnimation();
-}
-
-// Go back to previous state
-if (Input.IsActionJustPressed("cancel"))
-{
-    fsm.TryGoBack();
-}
-```
-
-### State Machine Introspection
+### Querying State Machine
 
 ```csharp
 // Current state info
-GD.Print($"Current: {fsm.GetCurrentId()}");
-GD.Print($"Time in state: {fsm.GetStateTime()}");
-GD.Print($"Min time met: {fsm.MintimeExceeded()}");
+T currentId = fsm.GetCurrentId();
+string stateName = fsm.GetCurrentStateName();
+float timeInState = fsm.GetStateTime();
+float lastStateTime = fsm.GetLastStateTime();
 
-// State queries
-var state = fsm.GetState(PlayerState.Running);
-if (state != null && state.TryGetData<float>("speed", out var speed))
-{
-    GD.Print($"Running speed: {speed}");
-}
+// Previous state
+T previousId = fsm.GetPreviousId();
+bool wasPrevious = fsm.IsPreviousState(State.Idle);
 
-// Find by tag
-var movementStates = fsm.GetStatesWithTag("movement");
-foreach (var state in movementStates)
-{
-    GD.Print($"Movement state: {state.Id}");
-}
+// Check states
+bool isIdle = fsm.IsCurrentState(State.Idle);
+bool canLeave = fsm.MintimeExceeded();
 
 // Check transitions
-if (fsm.HasTransition(PlayerState.Idle, PlayerState.Walking))
-{
-    GD.Print("Can walk from idle");
-}
+bool hasTransition = fsm.HasTransition(StateA, StateB);
+bool hasGlobal = fsm.HasGlobalTransition(State.Death);
+
+// Get available transitions from current state
+var transitions = fsm.GetAvailableTransitions();
 ```
 
-### Pausing
+### Pause and Resume
 
 ```csharp
-// Pause/resume
+// Pause state machine
 fsm.Pause();
-// ... game paused ...
+
+// Resume
 fsm.Resume();
 
 // Toggle
-fsm.TogglePaused(isPaused);
+fsm.TogglePaused(true);
 
-// Check state
-if (fsm.IsActive())
-{
-    // State machine is running
-}
+// Check if active
+bool isActive = fsm.IsActive();
 ```
 
----
+## 🎯 Real-World Examples
 
-## Best Practices
+### Example 1: Player Controller
 
-### 1. Use Enums for State IDs
 ```csharp
-// ✅ Good: Type-safe, autocomplete, refactor-friendly
-public enum PlayerState { Idle, Walking, Running }
-var fsm = new StateMachine<PlayerState>();
+public enum PlayerState { Idle, Walk, Run, Jump, Fall, Attack, Hurt, Dead }
 
-// ❌ Bad: Strings are error-prone
-// Don't use StateMachine<string>
-```
-
-### 2. Separate Concerns
-```csharp
-// ✅ Good: FSM handles state logic, node handles visuals
-fsm.AddState(PlayerState.Running)
-    .OnEnter(() => OnRunStart())
-    .OnExit(() => OnRunEnd());
-
-private void OnRunStart()
-{
-    animPlayer.Play("run");
-    dustParticles.Emitting = true;
-}
-
-// ❌ Bad: Don't mix FSM with rendering directly
-```
-
-### 3. Keep Conditions Simple
-```csharp
-// ✅ Good: Simple, readable conditions
-fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetCondition(fsm => IsMoving());
-
-private bool IsMoving() => Input.GetVector("left", "right", "up", "down").Length() > 0.1f;
-
-// ❌ Bad: Complex logic inline
-fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetCondition(fsm => {
-        var input = Input.GetVector(...);
-        var normalized = input.Normalized();
-        var magnitude = input.Length();
-        return magnitude > 0.1f && !isStunned && stamina > 0;
-    });
-```
-
-### 4. Use Guards for Performance
-```csharp
-// ✅ Good: Guard prevents expensive checks
-fsm.AddTransition(PlayerState.Idle, PlayerState.Attacking)
-    .SetGuard(fsm => CanAttack()) // Cheap check
-    .SetCondition(fsm => FindNearestEnemy() != null); // Expensive check
-
-// Guard fails fast, expensive check never runs
-```
-
-### 5. Dispose Properly
-```csharp
-public partial class Player : CharacterBody2D
+public partial class Player : CharacterBody3D
 {
     private StateMachine<PlayerState> fsm;
+    private float health = 100f;
 
     public override void _Ready()
     {
         fsm = new StateMachine<PlayerState>();
-        // ... setup ...
-    }
 
-    public override void _ExitTree()
-    {
-        fsm?.Dispose(); // ✅ Clean up event listeners
-    }
-}
-```
+        // Setup states
+        fsm.AddState(PlayerState.Idle)
+            .OnEnter(() => animator.Play("idle"))
+            .SetMinTime(0.1f);
 
-### 6. Use Events for Decoupling
-```csharp
-// ✅ Good: UI and FSM are decoupled
-fsm.OnEvent("state_changed", () => UpdateUI());
+        fsm.AddState(PlayerState.Walk)
+            .OnUpdate(delta => Move(delta, walkSpeed))
+            .OnEnter(() => animator.Play("walk"));
 
-// ❌ Bad: FSM directly manipulates UI
-// fsm.AddState(...).OnEnter(() => uiLabel.Text = "Idle");
-```
+        fsm.AddState(PlayerState.Jump)
+            .OnEnter(() => ApplyJumpForce())
+            .SetTimeout(0.3f)
+            .SetTimeoutId(PlayerState.Fall);
 
-### 7. Avoid Deep Nesting
-```csharp
-// ✅ Good: Flat state structure
-enum GameState { MainMenu, Playing, Paused, GameOver }
+        fsm.AddState(PlayerState.Hurt)
+            .OnEnter(() => {
+                var damage = fsm.GetPerTransitionData<float>();
+                health -= damage;
+                PlayHurtAnimation();
+            })
+            .SetTimeout(0.5f)
+            .SetTimeoutId(PlayerState.Idle)
+            .Lock(FSMLockMode.Full);
 
-// ❌ Bad: Don't create sub-FSMs unless necessary
-// Hierarchical FSMs are complex and usually overkill
-```
+        // Ground movement
+        fsm.AddTransition(PlayerState.Idle, PlayerState.Walk)
+            .SetCondition(sm => GetInputVector().Length() > 0);
 
----
+        fsm.AddTransition(PlayerState.Walk, PlayerState.Idle)
+            .SetCondition(sm => GetInputVector().Length() == 0);
 
-## Complete Examples
+        // Jumping
+        fsm.AddTransitions(
+            new[] { PlayerState.Idle, PlayerState.Walk },
+            PlayerState.Jump,
+            sm => Input.IsActionJustPressed("jump") && IsOnFloor()
+        );
 
-### Example 1: Character Controller
+        // Taking damage (global)
+        fsm.AddGlobalTransition(PlayerState.Hurt)
+            .OnEvent("take_damage")
+            .SetGuard(sm => health > 0);
 
-```csharp
-public partial class Player : CharacterBody2D
-{
-    public enum State { Idle, Walking, Running, Jumping, Falling, Landing }
-    
-    private StateMachine<State> fsm;
-    private float speed = 300f;
-    private float runSpeed = 500f;
-    private float jumpVelocity = -600f;
-    
-    public override void _Ready()
-    {
-        fsm = new StateMachine<State>();
-        SetupStateMachine();
+        // Death (global, highest priority)
+        fsm.AddGlobalTransition(PlayerState.Dead)
+            .SetCondition(sm => health <= 0)
+            .SetMaxPriority();
+
         fsm.Start();
     }
-    
-    private void SetupStateMachine()
+
+    public void TakeDamage(float amount)
     {
-        // Idle State
-        fsm.AddState(State.Idle)
-            .OnEnter(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("idle"))
-            .AddTags("grounded");
-        
-        // Walking State
-        fsm.AddState(State.Walking)
-            .OnUpdate((delta) => Move(speed, delta))
-            .OnEnter(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("walk"))
-            .AddTags("grounded", "moving");
-        
-        // Running State
-        fsm.AddState(State.Running)
-            .OnUpdate((delta) => Move(runSpeed, delta))
-            .OnEnter(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("run"))
-            .AddTags("grounded", "moving");
-        
-        // Jumping State
-        fsm.AddState(State.Jumping)
-            .SetProcessMode(FSMProcessMode.Fixed)
-            .OnEnter(() => {
-                Velocity = new Vector2(Velocity.X, jumpVelocity);
-                GetNode<AnimationPlayer>("AnimationPlayer").Play("jump");
-            })
-            .OnUpdate((delta) => ApplyGravity(delta))
-            .AddTags("airborne");
-        
-        // Falling State
-        fsm.AddState(State.Falling)
-            .SetProcessMode(FSMProcessMode.Fixed)
-            .OnUpdate((delta) => ApplyGravity(delta))
-            .OnEnter(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("fall"))
-            .AddTags("airborne");
-        
-        // Landing State
-        fsm.AddState(State.Landing)
-            .SetMinTime(0.2f)
-            .SetTimeout(0.2f)
-            .SetTimeoutId(State.Idle)
-            .OnEnter(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("land"))
-            .AddTags("grounded");
-        
-        // Transitions
-        fsm.AddTransition(State.Idle, State.Walking)
-            .SetCondition(fsm => GetMovementInput().Length() > 0.1f);
-        
-        fsm.AddTransition(State.Walking, State.Idle)
-            .SetCondition(fsm => GetMovementInput().Length() < 0.1f);
-        
-        fsm.AddTransition(State.Walking, State.Running)
-            .SetCondition(fsm => Input.IsActionPressed("sprint"));
-        
-        fsm.AddTransition(State.Running, State.Walking)
-            .SetCondition(fsm => !Input.IsActionPressed("sprint"));
-        
-        fsm.AddTransition(State.Idle, State.Jumping)
-            .OnEvent("jump")
-            .SetGuard(fsm => IsOnFloor());
-        
-        fsm.AddTransition(State.Walking, State.Jumping)
-            .OnEvent("jump")
-            .SetGuard(fsm => IsOnFloor());
-        
-        fsm.AddTransition(State.Running, State.Jumping)
-            .OnEvent("jump")
-            .SetGuard(fsm => IsOnFloor());
-        
-        // Fall when leaving ground
-        fsm.AddGlobalTransition(State.Falling)
-            .SetGuard(fsm => fsm.IsInStateWithTag("grounded"))
-            .SetCondition(fsm => !IsOnFloor())
-            .ForceInstant();
-        
-        // Land when touching ground
-        fsm.AddTransition(State.Falling, State.Landing)
-            .SetCondition(fsm => IsOnFloor());
-        
-        fsm.AddTransition(State.Jumping, State.Falling)
-            .SetCondition(fsm => Velocity.Y > 0);
-    }
-    
-    public override void _Process(double delta)
-    {
-        fsm.Process(FSMProcessMode.Idle, (float)delta);
-    }
-    
-    public override void _PhysicsProcess(double delta)
-    {
-        fsm.Process(FSMProcessMode.Fixed, (float)delta);
-        MoveAndSlide();
-    }
-    
-    public override void _Input(InputEvent @event)
-    {
-        if (@event.IsActionPressed("jump"))
-            fsm.SendEvent("jump");
-    }
-    
-    private Vector2 GetMovementInput()
-    {
-        return Input.GetVector("move_left", "move_right", "move_up", "move_down");
-    }
-    
-    private void Move(float moveSpeed, float delta)
-    {
-        var input = GetMovementInput();
-        Velocity = new Vector2(input.X * moveSpeed, Velocity.Y);
-    }
-    
-    private void ApplyGravity(float delta)
-    {
-        Velocity += GetGravity() * delta;
-    }
-    
-    public override void _ExitTree()
-    {
-        fsm?.Dispose();
+        fsm.SetData("pending_damage", amount);
+        fsm.SendEvent("take_damage");
     }
 }
 ```
@@ -700,258 +570,172 @@ public partial class Player : CharacterBody2D
 ### Example 2: Enemy AI
 
 ```csharp
-public partial class Enemy : CharacterBody2D
+public enum EnemyState { Idle, Patrol, Chase, Attack, Retreat, Dead }
+
+public partial class Enemy : CharacterBody3D
 {
-    public enum AIState { Idle, Patrol, Chase, Attack, Retreat, Death }
-    
-    private StateMachine<AIState> fsm;
-    private Node2D player;
-    private float detectionRange = 300f;
-    private float attackRange = 50f;
-    private float health = 100f;
-    
+    private StateMachine<EnemyState> fsm;
+    private Node3D player;
+
     public override void _Ready()
     {
-        fsm = new StateMachine<AIState>();
-        player = GetTree().Root.GetNode<Node2D>("Player");
-        SetupAI();
+        fsm = new StateMachine<EnemyState>();
+
+        fsm.AddState(EnemyState.Idle)
+            .SetTimeout(3f)
+            .SetTimeoutId(EnemyState.Patrol);
+
+        fsm.AddState(EnemyState.Patrol)
+            .OnUpdate(delta => PatrolBehavior(delta))
+            .SetTimeout(15f)
+            .SetTimeoutId(EnemyState.Idle);
+
+        fsm.AddState(EnemyState.Chase)
+            .OnUpdate(delta => ChasePlayer(delta))
+            .SetData("chase_speed", 7f);
+
+        fsm.AddState(EnemyState.Attack)
+            .OnEnter(() => PerformAttack())
+            .SetTimeout(1.5f)
+            .SetTimeoutId(EnemyState.Chase)
+            .SetCooldown(2f);  // Can't attack again for 2s
+
+        // Detect player
+        fsm.AddTransitions(
+            new[] { EnemyState.Idle, EnemyState.Patrol },
+            EnemyState.Chase,
+            sm => PlayerInRange() && CanSeePlayer()
+        );
+
+        // Attack when close
+        fsm.AddTransition(EnemyState.Chase, EnemyState.Attack)
+            .SetCondition(sm => PlayerInAttackRange())
+            .SetGuard(sm => !fsm.IsStateOnCooldown(EnemyState.Attack));
+
+        // Lose player
+        fsm.AddTransition(EnemyState.Chase, EnemyState.Patrol)
+            .SetCondition(sm => !PlayerInRange())
+            .SetMinTime(3f);  // Chase for at least 3s
+
         fsm.Start();
     }
+
+    private bool PlayerInRange() => 
+        GlobalPosition.DistanceTo(player.GlobalPosition) < 15f;
     
-    private void SetupAI()
-    {
-        // Idle - Wait and look around
-        fsm.AddState(AIState.Idle)
-            .SetTimeout(3.0f)
-            .SetTimeoutId(AIState.Patrol)
-            .OnEnter(() => Velocity = Vector2.Zero);
-        
-        // Patrol - Move between waypoints
-        fsm.AddState(AIState.Patrol)
-            .OnEnter(() => ChooseNextWaypoint())
-            .OnUpdate((delta) => MoveToWaypoint(delta));
-        
-        // Chase - Pursue player
-        fsm.AddState(AIState.Chase)
-            .OnUpdate((delta) => ChasePlayer(delta))
-            .OnEnter(() => PlaySound("alert"));
-        
-        // Attack - Damage player
-        fsm.AddState(AIState.Attack)
-            .Lock(FSMLockMode.Full)
-            .SetTimeout(0.5f)
-            .SetTimeoutId(AIState.Chase)
-            .OnEnter(() => ExecuteAttack())
-            .OnTimeout(() => GetNode<AnimationPlayer>("AnimationPlayer").Play("RESET"));
-        
-        // Retreat - Run away when low health
-        fsm.AddState(AIState.Retreat)
-            .OnUpdate((delta) => FleeFromPlayer(delta))
-            .SetData("retreatSpeed", 400f);
-        
-        // Death
-        fsm.AddState(AIState.Death)
-            .Lock(FSMLockMode.Full)
-            .OnEnter(() => Die());
-        
-        // Death is highest priority - checked first
-        fsm.AddGlobalTransition(AIState.Death)
-            .SetMaxPriority()
-            .SetCondition(fsm => health <= 0);
-        
-        // Retreat when health is low
-        fsm.AddGlobalTransition(AIState.Retreat)
-            .SetPriority(100)
-            .SetCondition(fsm => health < 30f && health > 0);
-        
-        // Start chasing when player is nearby
-        fsm.AddTransition(AIState.Idle, AIState.Chase)
-            .SetCondition(fsm => DistanceToPlayer() < detectionRange);
-        
-        fsm.AddTransition(AIState.Patrol, AIState.Chase)
-            .SetCondition(fsm => DistanceToPlayer() < detectionRange);
-        
-        // Attack when close enough
-        fsm.AddTransition(AIState.Chase, AIState.Attack)
-            .SetCondition(fsm => DistanceToPlayer() < attackRange);
-        
-        // Return to patrol when player is far
-        fsm.AddTransition(AIState.Chase, AIState.Patrol)
-            .SetCondition(fsm => DistanceToPlayer() > detectionRange * 1.5f);
-        
-        // Stop retreating when health is restored
-        fsm.AddTransition(AIState.Retreat, AIState.Idle)
-            .SetCondition(fsm => health >= 50f);
-    }
-    
-    public override void _PhysicsProcess(double delta)
-    {
-        fsm.Process(FSMProcessMode.Fixed, (float)delta);
-        MoveAndSlide();
-    }
-    
-    private float DistanceToPlayer()
-    {
-        return GlobalPosition.DistanceTo(player.GlobalPosition);
-    }
-    
-    private void ChasePlayer(float delta)
-    {
-        var direction = (player.GlobalPosition - GlobalPosition).Normalized();
-        Velocity = direction * 200f;
-    }
-    
-    private void FleeFromPlayer(float delta)
-    {
-        var direction = (GlobalPosition - player.GlobalPosition).Normalized();
-        Velocity = direction * 400f;
-    }
-    
-    private void ExecuteAttack()
-    {
-        GetNode<AnimationPlayer>("AnimationPlayer").Play("attack");
-        // Deal damage to player
-        if (DistanceToPlayer() < attackRange)
-        {
-            // player.TakeDamage(10);
-        }
-    }
-    
-    private void Die()
-    {
-        GetNode<AnimationPlayer>("AnimationPlayer").Play("death");
-        CollisionLayer = 0; // Disable collision
-        
-        // Remove after animation
-        GetTree().CreateTimer(2.0f).Timeout += () => QueueFree();
-    }
-    
-    public void TakeDamage(float amount)
-    {
-        health -= amount;
-        fsm.SendEvent("damaged");
-    }
-    
-    private void ChooseNextWaypoint()
-    {
-        // Waypoint logic...
-    }
-    
-    private void MoveToWaypoint(float delta)
-    {
-        // Movement logic...
-    }
-    
-    private void PlaySound(string soundName)
-    {
-        // Audio logic...
-    }
-    
-    public override void _ExitTree()
-    {
-        fsm?.Dispose();
-    }
+    private bool PlayerInAttackRange() => 
+        GlobalPosition.DistanceTo(player.GlobalPosition) < 2f;
 }
 ```
 
----
+### Example 3: Menu System
 
-## Troubleshooting
-
-### State Machine Not Updating
 ```csharp
-// ✅ Make sure you're calling Process()
-public override void _Process(double delta)
+public enum MenuState { MainMenu, Settings, Graphics, Audio, Controls, Paused }
+
+public partial class MenuManager : Control
 {
-    fsm.Process(FSMProcessMode.Idle, (float)delta);
+    private StateMachine<MenuState> fsm;
+
+    public override void _Ready()
+    {
+        fsm = new StateMachine<MenuState>();
+        fsm.SetHistoryActive(true);  // Enable navigation history
+
+        // Setup all menu states
+        fsm.AddState(MenuState.MainMenu)
+            .OnEnter(() => ShowPanel("MainMenu"))
+            .AddTags("menu", "root");
+
+        fsm.AddState(MenuState.Settings)
+            .OnEnter(() => ShowPanel("Settings"))
+            .AddTags("menu", "submenu");
+
+        fsm.AddState(MenuState.Graphics)
+            .OnEnter(() => ShowPanel("Graphics"))
+            .AddTags("settings_submenu");
+
+        // Back button transitions
+        fsm.AddTransitions(
+            new[] { MenuState.Graphics, MenuState.Audio, MenuState.Controls },
+            MenuState.Settings,
+            sm => Input.IsActionJustPressed("ui_cancel")
+        );
+
+        fsm.Start();
+    }
+
+    public void OnBackButtonPressed()
+    {
+        // Use history to go back
+        if (fsm.CanGoBack())
+            fsm.GoBack();
+    }
+
+    public void OnSettingsPressed() => 
+        fsm.TryChangeState(MenuState.Settings);
 }
-
-// ✅ Check if machine is paused
-if (!fsm.IsActive())
-{
-    fsm.Resume();
-}
-
-// ✅ Verify Start() was called
-fsm.Start();
 ```
 
-### Transitions Not Firing
-```csharp
-// ✅ Check MinTime requirements
-GD.Print($"Min time exceeded: {fsm.MintimeExceeded()}");
+## 🔧 API Reference
 
-// ✅ Verify state isn't locked
-var state = fsm.GetState(fsm.GetCurrentId());
-GD.Print($"Is locked: {state.IsLocked()}");
+### StateMachine<T>
 
-// ✅ Debug your conditions
-fsm.AddTransition(State.A, State.B)
-    .SetCondition(fsm => {
-        bool result = MyCondition();
-        GD.Print($"Transition condition: {result}");
-        return result;
-    });
-```
+| Method | Description |
+|--------|-------------|
+| `AddState(T id)` | Create a new state |
+| `RemoveState(T id)` | Remove a state |
+| `AddTransition(T from, T to)` | Add transition between states |
+| `AddGlobalTransition(T to)` | Add transition from any state |
+| `Start()` | Start the state machine |
+| `Reset()` | Reset to initial state |
+| `Process(FSMProcessMode, float)` | Update the state machine |
+| `UpdateCooldownTimers(float)` | Update all cooldown timers |
+| `TryChangeState(T to, ...)` | Attempt to change state |
+| `SendEvent(string)` | Trigger an event |
+| `GetCurrentId()` | Get current state ID |
+| `IsCurrentState(T)` | Check if in specific state |
+| `GoBack()` | Navigate to previous state |
 
-### Events Not Processing
-```csharp
-// ✅ Events are queued and process on next Process() call
-fsm.SendEvent("my_event");
-fsm.Process(FSMProcessMode.Idle, delta); // Event processes here
+### State<T>
 
-// ✅ Check event listeners are registered
-fsm.OnEvent("my_event", () => GD.Print("Event fired!"));
-```
+| Method | Description |
+|--------|-------------|
+| `OnEnter(Action)` | Set enter callback |
+| `OnUpdate(Action<float>)` | Set update callback |
+| `OnExit(Action)` | Set exit callback |
+| `SetMinTime(float)` | Set minimum time in state |
+| `SetTimeout(float)` | Set automatic timeout |
+| `SetCooldown(float)` | Set cooldown duration |
+| `AddTags(params string[])` | Add tags to state |
+| `SetData(string, object)` | Attach custom data |
+| `Lock(FSMLockMode)` | Lock state |
+
+### Transition<T>
+
+| Method | Description |
+|--------|-------------|
+| `SetCondition(Predicate)` | Set transition condition |
+| `SetGuard(Predicate)` | Set guard condition |
+| `OnEvent(string)` | Make event-based |
+| `SetPriority(int)` | Set evaluation priority |
+| `SetCooldown(float)` | Set cooldown |
+| `OnTrigger(Action)` | Set trigger callback |
+| `ForceInstant()` | Ignore min time |
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+
+## 📄 License
+
+This project is licensed under the MIT License - see LICENSE file for details.
+
+## 🙏 Credits
+
+Created for the Godot Engine community with ❤️
 
 ---
 
-## Performance Tips
-
-1. **Use Guards**: Guards fail fast and prevent expensive condition checks
-2. **Limit Transitions**: Don't create hundreds of transitions from one state
-3. **Cache Calculations**: Don't recalculate in conditions every frame
-4. **Use Tags**: More efficient than checking state IDs individually
-5. **Profile**: Use Godot's profiler to identify bottlenecks
-
----
-
-## API Reference Summary
-
-### StateMachine Methods
-- `AddState(T)` - Create a new state
-- `Start()` - Begin state machine
-- `Process(mode, delta)` - Update per frame
-- `AddTransition(from, to)` - Create transition
-- `AddGlobalTransition(to)` - Create from-any transition
-- `SendEvent(name)` - Queue an event
-- `OnEvent(name, callback)` - Listen for event
-- `SetData(key, value)` - Store global data
-- `TryGetData<T>(key, out value)` - Retrieve global data
-- `GetCurrentId()` - Get current state ID
-- `Pause()/Resume()` - Control execution
-- `Dispose()` - Clean up resources
-
-### State Methods (Fluent)
-- `.OnEnter(callback)` - Set enter callback
-- `.OnUpdate(callback)` - Set update callback
-- `.OnExit(callback)` - Set exit callback
-- `.SetTimeout(seconds)` - Auto-transition after time
-- `.SetMinTime(seconds)` - Minimum state duration
-- `.Lock(mode)` - Prevent transitions
-- `.AddTags(tags...)` - Add query tags
-- `.SetData(key, value)` - Store state data
-- `.SetProcessMode(mode)` - Idle or Fixed update
-
-### Transition Methods (Fluent)
-- `.SetCondition(predicate)` - Trigger condition
-- `.SetGuard(predicate)` - Pre-check condition
-- `.OnEvent(name)` - Trigger on event
-- `.SetPriority(int)` - Evaluation order
-- `.ForceInstant()` - Ignore MinTime
-- `.OnTrigger(callback)` - Callback when triggered
-- `.SetMinTime(seconds)` - Override state MinTime
-
----
-
-**You now have a bulletproof, production-ready FSM! 🎉**
+**Need help?** Open an issue on GitHub
+**Have suggestions?** Pull requests are welcome!
