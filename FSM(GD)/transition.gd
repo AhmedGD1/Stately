@@ -18,6 +18,8 @@ var insersion_index: int
 
 var force_instant_transition: bool
 
+var cooldown: Cooldown = Cooldown.new()
+
 func _init(from_id: int, to_id: int) -> void:
 	from = from_id
 	to = to_id
@@ -65,6 +67,25 @@ func break_instant() -> Transition:
 	force_instant_transition = false
 	return self
 
+func set_cooldown(duration: float) -> Transition:
+	cooldown.set_duration(duration)
+	return self
+
+func is_on_cooldown() -> bool:
+	return cooldown.is_active
+
+func start_cooldown() -> void:
+	cooldown.start()
+
+func update_cooldown(delta: float) -> void:
+	cooldown.update(delta)
+
 static func compare(a: Transition, b: Transition) -> int:
 	var priority_compare: int = b.priority - a.priority
 	return priority_compare if priority_compare != 0 else (a.insersion_index - b.insersion_index)
+
+
+
+
+
+

@@ -14,10 +14,12 @@ var exit: Callable
 var callback: Callable
 
 var process_mode: StateMachine.ProcessMode = StateMachine.ProcessMode.PHYSICS
-var lock_mode: StateMachine.LockMode = StateMachine.LockMode.None
+var lock_mode: StateMachine.LockMode = StateMachine.LockMode.NONE
 
 var tags: Array[String] = []
 var data: Dictionary[String, Variant] = {}
+
+var cooldown: Cooldown = Cooldown.new()
 
 func _init(new_id: int) -> void:
 	id = new_id
@@ -69,12 +71,12 @@ func set_process_mode(mode: StateMachine.ProcessMode) -> State:
 	process_mode = mode
 	return self
 
-func lock(mode: StateMachine.LockMode = StateMachine.LockMode.Full) -> State:
+func lock(mode: StateMachine.LockMode = StateMachine.LockMode.FULL) -> State:
 	lock_mode = mode
 	return self
 
 func unlock() -> State:
-	lock_mode = StateMachine.LockMode.None
+	lock_mode = StateMachine.LockMode.NONE
 	return self
 
 func add_tags(...what: Array) -> State:
@@ -95,13 +97,13 @@ func remove_data(key: String) -> bool:
 	return data.erase(key)
 
 func is_locked() -> bool:
-	return lock_mode != StateMachine.LockMode.None
+	return lock_mode != StateMachine.LockMode.NONE
 
 func is_fully_locked() -> bool:
-	return lock_mode == StateMachine.LockMode.Full
+	return lock_mode == StateMachine.LockMode.FULL
 
 func transition_blocked() -> bool:
-	return lock_mode == StateMachine.LockMode.Transition
+	return lock_mode == StateMachine.LockMode.TRANSITION
 
 func has_data(key: String) -> bool:
 	return data.has(key)
@@ -120,3 +122,28 @@ func get_transition_to(to_id: int) -> Transition:
 		if t.to == to_id:
 			return t
 	return null
+
+func set_cooldown(duration: float) -> State:
+	cooldown.set_duration(duration)
+	return self
+
+func is_on_cooldown() -> bool:
+	return cooldown.is_active
+
+func start_cooldown() -> void:
+	cooldown.start()
+
+func update_cooldown(delta: float) -> void:
+	cooldown.update(delta)
+
+
+
+
+
+
+
+
+
+
+
+
