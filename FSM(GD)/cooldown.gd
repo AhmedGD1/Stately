@@ -4,9 +4,6 @@ var _duration: float
 var _remaining_time: float
 var _active: bool
 
-var duration:
-	get: return _duration
-
 var is_active: bool:
 	get: return _active
 
@@ -14,7 +11,7 @@ func _init(cooldown_duration: float = 0.0) -> void:
 	_duration = cooldown_duration
 
 func set_duration(value: float) -> void:
-	duration = max(0.0, value)
+	_duration = max(0.0, value)
 
 func update(delta: float) -> void:
 	if !_active:
