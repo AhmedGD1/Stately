@@ -15,8 +15,8 @@ signal transition_triggered(from: int, to: int)
 signal timeout_blocked(id: int)
 signal state_timeout(id: int)
 
-const MAX_QUEUED_TRANSITIONS: int = 20
-const TRANSITION_DATA_ID: String = "36363667hrthg__transition_data__dsgseh464656dfb"
+const MAX_TRANSITION_QUEUE_SIZE: int = 20
+const TRANSITION_DATA_ID: String = "45u349gng668934u89grg85"
 
 var _history: StateHistory = StateHistory.new()
 
@@ -41,12 +41,18 @@ var _has_previous_state: bool
 var _paused: bool
 var _is_transitioning: bool
 var _is_processing_event: bool
+var _started: bool
 
 var _state_time: float
 var _last_state_time: float
 
+var _timers_process_mode: ProcessMode = ProcessMode.IDLE
+
 func _init(_enum: Dictionary) -> void:
 	_states_enum = _enum
+
+func set_cooldown_timers_process_mode(mode: ProcessMode) -> void:
+	_timers_process_mode = mode
 
 func add_state(id: int) -> State:
 	if _states.has(id):
@@ -65,7 +71,8 @@ func add_state(id: int) -> State:
 
 func start() -> void:
 	if _initialized:
-		_change_state_internal(_initial_id, true)
+		_perform_transition(_initial_id, true)
+	_started = true
 
 func remove_state(id: int) -> bool:
 	if !_states.has(id):
@@ -102,7 +109,7 @@ func reset() -> bool:
 		return false
 	
 	_history.clear()
-	_change_state_internal(_initial_id)
+	_perform_transition(_initial_id)
 	_has_previous_state = false
 	_previous_id = -1
 	
@@ -130,7 +137,7 @@ func reset_state_time() -> void:
 	_last_state_time = _state_time
 	_state_time = 0.0
 
-func try_change_state(id: int, condition: Callable = Callable(), data: Variant = null) -> bool:
+func try_transition_to(id: int, condition: Callable = Callable(), data: Variant = null) -> bool:
 	if !min_time_exceeded() || (condition.is_valid() && !condition.call()):
 		return false
 	
@@ -140,7 +147,7 @@ func try_change_state(id: int, condition: Callable = Callable(), data: Variant =
 	if data != null:
 		set_data(TRANSITION_DATA_ID, data)
 	
-	_change_state_internal(id)
+	_perform_transition(id)
 	return true
 
 func go_back(steps: int = 1) -> bool:
@@ -168,7 +175,7 @@ func go_back(steps: int = 1) -> bool:
 	
 	_history.remove_range(target_index, _history.entry_size - target_index)
 	
-	_change_state_internal(target_entry.state_id, false, true)
+	_perform_transition(target_entry.state_id, false, true)
 	return true
 
 func can_go_back() -> bool:
@@ -195,10 +202,10 @@ func go_back_state(state_id: int) -> bool:
 		return false
 	return go_back(steps)
 
-func _change_state_internal(id, bypass_exit: bool = false, bypass_history: bool = false) -> void:
+func _perform_transition(id, bypass_exit: bool = false, bypass_history: bool = false) -> void:
 	if _is_transitioning:
-		if _pending_transitions.size() >= MAX_QUEUED_TRANSITIONS:
-			push_error("Too many queued transitions (%d)! Possible infinite loop?" % MAX_QUEUED_TRANSITIONS)
+		if _pending_transitions.size() >= MAX_TRANSITION_QUEUE_SIZE:
+			push_error("Too many queued transitions (%d)! Possible infinite loop?" % MAX_TRANSITION_QUEUE_SIZE)
 			return
 		_pending_transitions.append(id)
 		return
@@ -238,7 +245,7 @@ func _change_state_internal(id, bypass_exit: bool = false, bypass_history: bool 
 	if _pending_transitions.size() > 0:
 		var next_id = _pending_transitions.pop_front()
 		_is_transitioning = false
-		_change_state_internal(next_id)
+		_perform_transition(next_id)
 	else:
 		_is_transitioning = false
 	
@@ -345,7 +352,7 @@ func sort_transitions() -> void:
 	_cached_sorted_transitions.append_array(_global_transitions)
 	_cached_sorted_transitions.sort_custom(Transition.compare)
 
-func send_event(event_name: String) -> void:
+func trigger_event(event_name: String) -> void:
 	if event_name.is_empty():
 		push_error("Event Name is invalid")
 		return
@@ -416,7 +423,7 @@ func _check_event_transitions(event_name: String) -> void:
 				continue
 			
 			transition.start_cooldown()
-			_change_state_internal(transition.to)
+			_perform_transition(transition.to)
 			
 			transition_triggered.emit(transition.from, transition.to)
 			if transition.triggered.is_valid(): transition.triggered.call()
@@ -426,16 +433,29 @@ func _check_event_transitions(event_name: String) -> void:
 		
 	_is_processing_event = false
 
-func process(mode: StateMachine.ProcessMode, delta: float) -> void:
+func update_idle(delta: float) -> void:
+	_process(ProcessMode.IDLE, delta)
+
+func update_fixed(delta: float) -> void:
+	_process(ProcessMode.IDLE, delta)
+
+func _process(mode: StateMachine.ProcessMode, delta: float) -> void:
+	if !_started:
+		push_error("State Machine hasn't started yet, make sure to call start() method first")
+		return
+	
 	if _paused || _current_state == null:
 		return
+	
+	if _timers_process_mode == mode:
+		_update_cooldown_timers(delta)
 	
 	if _current_state.process_mode == mode:
 		_state_time += delta
 		_safe_call(_current_state.update, delta)
 		_check_transitions()
 
-func update_cooldown_timers(delta: float) -> void:
+func _update_cooldown_timers(delta: float) -> void:
 	_history.update_elapsed_time(delta)
 	
 	if _current_state != null:
@@ -495,7 +515,7 @@ func _on_state_timeout_triggered() -> void:
 	_safe_call(_current_state.callback)
 	state_timeout.emit(from_id)
 	transition_triggered.emit(from_id, timeout_id)
-	_change_state_internal(timeout_id)
+	_perform_transition(timeout_id)
 
 func _check_transition_loop() -> void:
 	for transition: Transition in _cached_sorted_transitions:
@@ -519,7 +539,7 @@ func _check_transition_loop() -> void:
 				continue
 			
 			transition.start_cooldown()
-			_change_state_internal(transition.to)
+			_perform_transition(transition.to)
 			
 			_safe_call(transition.triggered)
 			transition_triggered.emit(transition.from, transition.to)
@@ -742,5 +762,3 @@ func _is_id_valid(id: int) -> bool:
 		push_error("Can't find state with id: %s" % get_state_name(id))
 		return false
 	return true
-
-

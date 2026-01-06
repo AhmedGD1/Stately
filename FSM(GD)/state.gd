@@ -55,11 +55,11 @@ func on_timeout(method: Callable) -> State:
 	callback = method
 	return self
 
-func set_min_time(duration: float) -> State:
+func min_duration(duration: float) -> State:
 	min_time = max(0.0, duration)
 	return self
 
-func set_timeout(duration: float) -> State:
+func timeout_after(duration: float) -> State:
 	timeout = duration
 	return self
 

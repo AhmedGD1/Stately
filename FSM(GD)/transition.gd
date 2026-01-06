@@ -27,7 +27,7 @@ func _init(from_id: int, to_id: int) -> void:
 	global_insertion_counter += 1
 	insersion_index = global_insertion_counter
 
-func on_triggered(method: Callable) -> Transition:
+func on_trigger(method: Callable) -> Transition:
 	triggered = method
 	return self
 
@@ -43,7 +43,7 @@ func set_guard(method: Callable) -> Transition:
 	guard = method
 	return self
 
-func set_min_time(duration: float) -> Transition:
+func require_min_time(duration: float) -> Transition:
 	override_min_time = duration
 	return self
 
@@ -55,7 +55,7 @@ func set_priority(value: int) -> Transition:
 	priority = value
 	return self
 
-func set_on_top() -> Transition:
+func highest_priority() -> Transition:
 	priority = MAX_PRIORITY
 	return self
 

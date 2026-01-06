@@ -39,7 +39,7 @@ func get_history() -> Array[HistoryEntry]:
 func get_recent_history(count: int) -> Array[HistoryEntry]:
 	var min: int = min(count, _entries.size())
 	
-	var recent: Array = []
+	var recent: Array[HistoryEntry] = []
 	for i: int in range(_entries.size() - min, min):
 		recent.append(_entries[i])
 	
