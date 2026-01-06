@@ -1,4 +1,4 @@
-# Godot FSM Library
+# Finite State Machine (FSM) | Godot C#
 
 A powerful and flexible Finite State Machine library for Godot with C#. This library provides a robust foundation for managing complex state-based behavior in your games.
 
