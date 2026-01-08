@@ -136,6 +136,7 @@ public class StateMachine<T> : IDisposable where T : Enum
         
         return true;
     }
+
     public bool Reset()
     {
         if (states.Count == 0)
@@ -501,6 +502,16 @@ public class StateMachine<T> : IDisposable where T : Enum
         }
 
         pendingEvents.Enqueue(eventName);
+    }
+
+    public void TriggerEvent<TEvent>(TEvent eventName) where TEvent : Enum
+    {
+        TriggerEvent(eventName.ToString());
+    }
+
+    public void OnEvent<TEvent>(TEvent eventName, Action callback) where TEvent : Enum
+    {
+        OnEvent(eventName.ToString(), callback);
     }
 
     public void OnEvent(string eventName, Action callback)

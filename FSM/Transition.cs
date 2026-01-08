@@ -60,6 +60,11 @@ public class Transition<T> where T : Enum
         return this;
     }
 
+    public Transition<T> OnEvent<TEvent>(TEvent eventName) where TEvent : Enum
+    {
+        return OnEvent(eventName.ToString());
+    }
+
     public Transition<T> SetCondition(Predicate<StateMachine<T>> condition)
     {
         Condition = condition;
