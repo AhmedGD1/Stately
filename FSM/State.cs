@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Godot.FSM;
+namespace AhmedGD.FSM;
 
 public class State<T> where T : Enum
 {
@@ -14,8 +14,10 @@ public class State<T> where T : Enum
     public float Timeout { get; private set; } = -1f;
 
     public Action<float> Update { get; private set; }
+
     public Action Enter { get; private set; }
     public Action Exit { get; private set; }
+
     public Action OnTimeoutTriggered { get; private set; }
 
     public FSMProcessMode ProcessMode { get; private set; }
@@ -117,6 +119,11 @@ public class State<T> where T : Enum
         foreach (string tag in what)
             tags.Add(tag);
         return this;
+    }
+
+    public bool HasTag(string tag)
+    {
+        return tags.Contains(tag);
     }
 
     public State<T> SetData(string id, object value)

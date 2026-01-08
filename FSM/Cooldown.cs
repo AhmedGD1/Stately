@@ -1,6 +1,6 @@
 using System;
 
-namespace Godot.FSM;
+namespace AhmedGD.FSM;
 
 public class Cooldown
 {

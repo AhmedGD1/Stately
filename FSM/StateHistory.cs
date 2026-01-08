@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Godot.FSM;
+namespace AhmedGD.FSM;
 
 public class StateHistory<T> where T : Enum
 {
@@ -63,9 +63,9 @@ public class StateHistory<T> where T : Enum
         return entries[index];
     }
 
-    public void RemoveRange(int from, int to)
+    public void RemoveRange(int startIndex, int count)
     {
-        entries.RemoveRange(from , to);
+        entries.RemoveRange(startIndex , count);
     }
 
     public void ClearHistory()

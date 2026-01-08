@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Godot.FSM;
+namespace AhmedGD.FSM;
 
 public class Transition<T> where T : Enum
 {

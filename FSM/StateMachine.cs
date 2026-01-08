@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Godot.FSM;
+namespace AhmedGD.FSM;
 
 public class StateMachine<T> : IDisposable where T : Enum
 {
@@ -12,7 +12,7 @@ public class StateMachine<T> : IDisposable where T : Enum
     public event Action<T> StateTimeout;
 
     private const int MaxTransitionQueueSize = 20;
-    private const string DataPerTransition = "45u349gng668934u89grg85";
+    private const string DataPerTransition = "__FSM_INTERNAL_TRANSITION_DATA__";
 
     public StateHistory<T> StateHistory => history;
 
@@ -99,41 +99,45 @@ public class StateMachine<T> : IDisposable where T : Enum
 
     public bool RemoveState(T id)
     {
+        if (isTransitioning)
+        {
+            logger.LogError("Cannot remove state during transition");
+            return false;
+        }
+
         if (!states.TryGetValue(id, out State<T> state))
         {
             logger.LogWarning($"State With Id: {id}, does not exist");
             return false;
         }
 
-        // Can't remove the only state
         if (states.Count == 1)
         {
             logger.LogError("Cannot remove the last state in the state machine");
             return false;
         }
 
-        // If removing the initial state, pick a new one
+        bool wasCurrentState = currentState != null && currentState.Id.Equals(id);
+        
         if (initialId.Equals(id))
         {
-            // Find first state that isn't the one being removed
             var newId = states.Keys.FirstOrDefault(k => !k.Equals(id));
-            SetInitialId(newId);
+            initialId = newId;
         }
         
-        // If it's the current state, reset
-        if (currentState != null && currentState.Id.Equals(state.Id))
-        {
-            Reset();
-        }
-
-        // Remove all transitions pointing to this state
         foreach (var kvp in states)
             kvp.Value.RemoveTransition(id);
         globalTransitions.RemoveAll(t => t.To.Equals(id));
 
         states.Remove(id);
-        SortTransitions();
         
+        if (wasCurrentState)
+        {
+            currentState = states[initialId];
+            Reset();
+        }
+        
+        SortTransitions();
         return true;
     }
 
@@ -297,7 +301,7 @@ public class StateMachine<T> : IDisposable where T : Enum
         return GoBack(steps);
     }
 
-    public void PerformTransition(T id, bool bypassExit = false, bool bypassHistory = false)
+    private void PerformTransition(T id, bool bypassExit = false, bool bypassHistory = false)
     {
         if (isTransitioning)
         {
@@ -422,6 +426,7 @@ public class StateMachine<T> : IDisposable where T : Enum
 
         var transition = new Transition<T>(default, to);
         globalTransitions.Add(transition);
+        SortTransitions();
 
         return transition;
     }
@@ -543,7 +548,7 @@ public class StateMachine<T> : IDisposable where T : Enum
     public void ClearEventListeners()
     {
         eventListeners.Clear();
-    }
+    }   
 
     private void ProcessEvents()
     {
@@ -553,8 +558,10 @@ public class StateMachine<T> : IDisposable where T : Enum
 
             if (eventListeners.TryGetValue(eventName, out var listener))
             {
-                foreach (var callback in listener)
-                    callback?.Invoke();
+                for (int i = listener.Count - 1; i >= 0; i--)
+                {
+                    listener[i]?.Invoke();
+                }
             }
 
             if (cachedSortedTransitions.Count > 0 && !isProcessingEvent)
@@ -798,7 +805,7 @@ public class StateMachine<T> : IDisposable where T : Enum
     public float GetMinStateTime()
     {
         if (currentState == null)
-            throw new NullReferenceException();
+            throw new InvalidOperationException("No current state. Call Start() first.");
         return currentState.MinTime;
     }
 
@@ -865,7 +872,7 @@ public class StateMachine<T> : IDisposable where T : Enum
 
     public List<State<T>> GetStatesWithTag(string tag)
     {
-        List<State<T>> result = new();
+        var result = new List<State<T>>();
 
         foreach (var kvp in states)
         {
@@ -1007,12 +1014,12 @@ public class DefaultLogger : ILogger
     /// Logs an error message using GD.PushError.
     /// </summary>
     /// <param name="text">The error message to log.</param>
-    public void LogError(string text) => GD.PushError(text);
+    public void LogError(string text) => Godot.GD.PushError(text);
     
     /// <summary>
     /// Logs a warning message using GD.PushWarning.
     /// </summary>
     /// <param name="text">The warning message to log.</param>
-    public void LogWarning(string text) => GD.PushWarning(text);
+    public void LogWarning(string text) => Godot.GD.PushWarning(text);
 }
 
