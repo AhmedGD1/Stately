@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AhmedGD.FSM;
+namespace Game.FSM;
 
 public class StateMachine<T> : IDisposable where T : Enum
 {
@@ -687,6 +687,8 @@ public class StateMachine<T> : IDisposable where T : Enum
 
     private void OnStateTimeoutTriggered()
     {
+        currentState.TimeoutExpired?.Invoke();
+
         if (currentState.IsFullyLocked())
         {
             TimeoutBlocked?.Invoke(currentState.Id);

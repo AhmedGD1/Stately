@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AhmedGD.FSM;
+namespace Game.FSM;
 
 public class State<T> where T : Enum
 {
@@ -19,6 +19,7 @@ public class State<T> where T : Enum
     public Action Exit { get; private set; }
 
     public Action OnTimeoutTriggered { get; private set; }
+    public Action TimeoutExpired { get; private set; }
 
     public FSMProcessMode ProcessMode { get; private set; }
     public FSMLockMode LockMode { get; private set; }
@@ -75,6 +76,18 @@ public class State<T> where T : Enum
     public State<T> OnTimeout(Action method)
     {
         OnTimeoutTriggered = method;
+        return this;
+    }
+
+    /// <summary>
+    /// Called when state timeout while it's locked;
+    /// Call OnTimeout() method instead if state isn't locked;
+    /// </summary>
+    /// <param name="method"></param>
+    /// <returns></returns>
+    public State<T> OnTimeoutExpired(Action method)
+    {
+        TimeoutExpired = method;
         return this;
     }
 
