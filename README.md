@@ -71,7 +71,12 @@ public partial class Player : CharacterBody2D
 
     public override void _Process(double delta)
     {
-        fsm.Update((float)delta);
+        fsm.UpdateIdle((float)delta);
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        fsm.UpdateFixed((float)delta);
     }
 }
 ```
