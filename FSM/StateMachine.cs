@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Game.FSM;
+namespace FiniteStateMachine;
 
 public class StateMachine<T> : IDisposable where T : Enum
 {
@@ -86,7 +86,25 @@ public class StateMachine<T> : IDisposable where T : Enum
             SetInitialId(id);
 
         if (initialized && states.ContainsKey(initialId))
-            state.SetTimeoutId(initialId);
+            state.TimeoutTargetId = initialId;
+        return state;
+    }
+
+    public State<T> ConfigureState(T id, Action<State<T>> configure)
+    {
+        if (configure == null)
+        {
+            logger.LogError("Configure action can not be null");
+            return null;
+        }
+
+        State<T> state;
+        if (!states.TryGetValue(id, out state))
+        {
+            state = AddState(id);
+        }
+
+        configure(state);
         return state;
     }
 
@@ -362,6 +380,52 @@ public class StateMachine<T> : IDisposable where T : Enum
         }
     }
 
+    public Transition<T> ConfigureTransition(T from, T to, Action<Transition<T>> configure)
+    {
+        if (configure == null)
+        {
+            logger.LogError("Configure can not be null");
+            return null;
+        }
+
+        Transition<T> transition = null;
+        if (states.TryGetValue(from, out var state))
+        {
+            transition = state.Transitions.Find(t => t.To.Equals(to));
+        }
+
+        if (transition == null)
+        {
+            transition = AddTransition(from, to);
+            if (transition == null)
+                return null;
+        }
+
+        configure(transition);
+        return transition;
+    }
+
+    public Transition<T> ConfigureGlobalTransition(T to, Action<Transition<T>> configure)
+    {
+        if (configure == null)
+        {
+            logger.LogError("Configure action cannot be null");
+            return null;
+        }
+
+        var transition = globalTransitions.Find(t => t.To.Equals(to));
+
+        if (transition == null)
+        {
+            transition = AddGlobalTransition(to);
+            if (transition == null)
+                return null;
+        }
+
+        configure(transition);
+        return transition;
+    }
+
     public Transition<T> AddTransition(T from, T to)
     {
         if (!states.TryGetValue(from, out var state))
@@ -414,6 +478,33 @@ public class StateMachine<T> : IDisposable where T : Enum
 
         for (int i = 0; i < from.Length; i++)
             AddTransition(from[i], to)?.SetCondition(condition);
+    }
+
+    public void AddTagTransition(string tag, T to, Predicate<StateMachine<T>> condition)
+    {
+        foreach (var kvp in states)
+        {
+            if (kvp.Value.HasTag(tag))
+            {
+                AddTransition(kvp.Value.Id, to).SetCondition(condition);
+            }
+        }
+    }
+
+    public void AddTagTransition(string tag, T to, string eventName)
+    {
+        foreach (var kvp in states)
+        {
+            if (kvp.Value.HasTag(tag))
+            {
+                AddTransition(kvp.Value.Id, to).OnEvent(eventName);
+            }
+        }
+    }
+
+    public void AddTagTransition<TEvent>(string tag, T to, TEvent eventName) where TEvent : Enum
+    {
+        AddTagTransition(tag, to, eventName.ToString());
     }
 
     public Transition<T> AddGlobalTransition(T to)
@@ -1012,16 +1103,7 @@ public interface ILogger
 
 public class DefaultLogger : ILogger
 {
-    /// <summary>
-    /// Logs an error message using GD.PushError.
-    /// </summary>
-    /// <param name="text">The error message to log.</param>
-    public void LogError(string text) => Godot.GD.PushError(text);
-    
-    /// <summary>
-    /// Logs a warning message using GD.PushWarning.
-    /// </summary>
-    /// <param name="text">The warning message to log.</param>
-    public void LogWarning(string text) => Godot.GD.PushWarning(text);
+    public void LogError(string text) => Console.WriteLine($"[ERROR] {text}");
+    public void LogWarning(string text) => Console.WriteLine($"[WARN] {text}");
 }
 

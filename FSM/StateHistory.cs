@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Game.FSM;
+namespace FiniteStateMachine;
 
 public class StateHistory<T> where T : Enum
 {

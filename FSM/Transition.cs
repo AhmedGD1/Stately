@@ -1,7 +1,6 @@
 using System;
-using System.Collections.Generic;
 
-namespace Game.FSM;
+namespace FiniteStateMachine;
 
 public class Transition<T> where T : Enum
 {

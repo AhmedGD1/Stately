@@ -1,6 +1,6 @@
 using System;
 
-namespace Game.FSM;
+namespace FiniteStateMachine;
 
 public class Cooldown
 {

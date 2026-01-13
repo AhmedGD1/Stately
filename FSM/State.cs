@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 
-namespace Game.FSM;
+namespace FiniteStateMachine;
 
 public class State<T> where T : Enum
 {
     public T Id { get; private set; }
-    public T TimeoutTargetId { get; private set; }
+    public T TimeoutTargetId { get; set; }
 
     public List<Transition<T>> Transitions { get; set; } = new();
 
@@ -103,10 +103,10 @@ public class State<T> where T : Enum
         return this;
     }
 
-    public State<T> SetTimeoutId(T id)
+    public State<T> TimeoutAfter(float duration, T to)
     {
-        TimeoutTargetId = id;
-        return this;
+        TimeoutTargetId = to;
+        return TimeoutAfter(duration);
     }
 
     public State<T> SetProcessMode(FSMProcessMode mode)
@@ -168,6 +168,12 @@ public class State<T> where T : Enum
 
     public bool HasData(string id) => data.ContainsKey(id);
     public bool HasData(object dataValue) => data.ContainsValue(dataValue);
+
+    public State<T> ApplyTemplate(StateTemplate<T> template)
+    {
+        template?.ApplyTo(this);
+        return this;
+    }
 
     public State<T> SetCooldown(float duration)
     {
