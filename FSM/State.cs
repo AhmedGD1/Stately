@@ -5,6 +5,14 @@ namespace FiniteStateMachine;
 
 public class State<T> where T : Enum
 {
+    public Cooldown Cooldown => cooldown;
+    public IReadOnlyCollection<string> Tags => tags;
+
+    public bool IsParent => ChildrenIds.Count > 0;
+    public bool IsChild => !ParentId.Equals(default(T));
+    public bool IsRoot => !IsChild;
+    public bool IsLeaf => !IsParent;
+
     public T Id { get; private set; }
     public T TimeoutTargetId { get; set; }
 
@@ -24,19 +32,24 @@ public class State<T> where T : Enum
     public FSMProcessMode ProcessMode { get; private set; }
     public FSMLockMode LockMode { get; private set; }
 
-    public Cooldown Cooldown => cooldown;
-
-    public IReadOnlyCollection<string> Tags => tags;
-    public IReadOnlyDictionary<string, object> Data => data;
+    public T ParentId { get; internal set; }
+    public T DefaultChildId { get; private set; }
+    public List<T> ChildrenIds { get; private set; } = new();
 
     private HashSet<string> tags = new();
-    private Dictionary<string, object> data = new();
+    private Dictionary<Type, object> data = new();
 
     private readonly Cooldown cooldown = new();
 
     public State(T id)
     {
         Id = id;
+    }
+
+    public State<T> SetDefaultChild(T childId)
+    {
+        DefaultChildId = childId;
+        return this;
     }
 
     public Transition<T> AddTransition(T to)
@@ -139,35 +152,41 @@ public class State<T> where T : Enum
         return tags.Contains(tag);
     }
 
-    public State<T> SetData(string id, object value)
+    public State<T> SetData<TData>(TData value)
     {
-        data[id] = value;
+        data[typeof(TData)] = value;
         return this;
     }
 
-    public bool TryGetData<TData>(string id, out TData value)
+    public bool TryGetData<TData>(out TData value)
     {
-        if (data.TryGetValue(id, out var result) && result is TData castValue)
+        if (data.TryGetValue(typeof(TData), out var result) && result is TData castValue)
         {
             value = castValue;
             return true;
         }
-        
         value = default;
         return false;
     }
 
-    public bool RemoveData(string id)
+    public bool RemoveData<TData>()
     {
-        return data.Remove(id);
+        return data.Remove(typeof(TData));
+    }
+
+    public TData GetData<TData>()
+    {
+        if (data.TryGetValue(typeof(TData), out var result) && result is TData castValue)
+            return castValue;
+        return default;
     }
 
     public bool IsLocked() => LockMode != FSMLockMode.None;
     public bool IsFullyLocked() => LockMode == FSMLockMode.Full;
     public bool TransitionBlocked() => LockMode == FSMLockMode.Transition;
 
-    public bool HasData(string id) => data.ContainsKey(id);
-    public bool HasData(object dataValue) => data.ContainsValue(dataValue);
+    public bool HasData<TData>() => data.ContainsKey(typeof(TData));
+    public bool HasDataWithValue<TData>(object value) => data.TryGetValue(typeof(TData), out var result) && result.Equals(value);
 
     public State<T> ApplyTemplate(StateTemplate<T> template)
     {
@@ -194,5 +213,10 @@ public class State<T> where T : Enum
     internal void UpdateCooldown(float delta)
     {
         cooldown.Update(delta);
+    }
+
+    internal void SetDataDirect(Type type, object value)
+    {
+        data[type] = value;
     }
 }

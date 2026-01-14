@@ -21,7 +21,7 @@ public class StateTemplate<T> where T : Enum
     public float CooldownDuration { get; set; } = -1f;
     
     public List<string> Tags { get; set; } = new();
-    public Dictionary<string, object> Data { get; set; } = new();
+    public Dictionary<Type, object> Data { get; set; } = new();
     
     public StateTemplate<T> WithUpdate(Action<float> update)
     {
@@ -78,9 +78,9 @@ public class StateTemplate<T> where T : Enum
         return this;
     }
     
-    public StateTemplate<T> WithData(string key, object value)
+    public StateTemplate<T> WithData<TData>(TData value)
     {
-        Data[key] = value;
+        Data[typeof(TData)] = value;
         return this;
     }
     
@@ -103,6 +103,6 @@ public class StateTemplate<T> where T : Enum
         if (Tags.Count > 0) state.AddTags(Tags.ToArray());
         
         foreach (var kvp in Data)
-            state.SetData(kvp.Key, kvp.Value);
+            state.SetDataDirect(kvp.Key, kvp.Value);
     }
 }
