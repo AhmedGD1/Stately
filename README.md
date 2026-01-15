@@ -59,9 +59,8 @@ A production-ready finite state machine library designed for complex game logic,
 4. Import the namespace: `using Stately;`
 
 **Requirements:**
-- Godot 4.0+
 - .NET 6.0+
-- C# 10.0+
+- C# 8.0+
 
 ---
 
