@@ -53,7 +53,7 @@ public partial class StateMachine<T>
 
     public Transition<T> AddTransition(T from, T to)
     {
-        if (!states.TryGetValue(from, out var state))
+        if (!states.TryGetValue(from, out var fromState))
         {
             logger.LogError($"Can not transition as (From state) does not exist");
             return null;
@@ -65,7 +65,20 @@ public partial class StateMachine<T>
             return null;
         }
 
-        var transition = state.AddTransition(to);
+        // NEW: Resolve parent states to their leaves
+        T fromLeaf = ResolveToLeaf(from);
+        T toLeaf = ResolveToLeaf(to);
+
+        // Validate resolved states
+        if (!states.ContainsKey(fromLeaf) || !states.ContainsKey(toLeaf))
+        {
+            logger.LogError($"Failed to resolve states to leaves");
+            return null;
+        }
+
+        // Add transition using resolved leaf states
+        var resolvedFromState = states[fromLeaf];
+        var transition = resolvedFromState.AddTransition(toLeaf);
         SortTransitions();
 
         return transition;
@@ -411,26 +424,48 @@ public partial class StateMachine<T>
 
             if (!guardPassed)
                 continue;
-            
+
             float requiredTime = transition.OverrideMinTime > 0f ? transition.OverrideMinTime : currentState.MinTime;
 
             if (stateTime < requiredTime && !transition.ForceInstantTransition)
                 continue;
-            
+
+            bool isInFromState = IsInFromStateHierarchy(transition.From);
+
+            if (!isInFromState)
+                continue;
+
             if (transition.Condition?.Invoke(this) ?? false)
             {
-                if (states.TryGetValue(transition.To, out var targetState) && targetState.IsOnCooldown())
+                // Resolve target to leaf
+                T targetLeaf = ResolveToLeaf(transition.To);
+
+                if (states.TryGetValue(targetLeaf, out var targetState) && targetState.IsOnCooldown())
                     continue;
 
                 transition.StartCooldown();
-                PerformTransition(transition.To);
+                PerformTransition(targetLeaf);
 
                 transition.OnTriggered?.Invoke();
-                TransitionTriggered?.Invoke(transition.From, transition.To);
+                TransitionTriggered?.Invoke(transition.From, targetLeaf);
 
                 return;
             }
         }
+    }
+
+    private bool IsInFromStateHierarchy(T fromStateId)
+    {
+        // Global transition (from default enum value)
+        if (fromStateId.Equals(default(T)))
+            return true;
+
+        // Direct match
+        if (currentState.Id.Equals(fromStateId))
+            return true;
+
+        // Check if we're a child/descendant of fromStateId
+        return IsInHierarchy(fromStateId);
     }
 }
 

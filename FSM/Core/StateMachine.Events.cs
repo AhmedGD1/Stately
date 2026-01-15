@@ -79,7 +79,7 @@ public partial class StateMachine<T>
     {
         if (isProcessingEvent)
             return;
-        
+
         isProcessingEvent = true;
 
         try
@@ -88,27 +88,34 @@ public partial class StateMachine<T>
             {
                 if (string.IsNullOrEmpty(transition.EventName))
                     continue;
-                
+
                 if (transition.EventName != eventName)
                     continue;
-                
+
                 if (transition.IsOnCooldown())
                     continue;
-                
+
+                bool isInFromState = IsInFromStateHierarchy(transition.From);
+                if (!isInFromState)
+                    continue;
+
                 bool guardPassed = transition.Guard?.Invoke(this) ?? true;
-                
+
                 float requiredTime = transition.OverrideMinTime > 0f ? transition.OverrideMinTime : currentState.MinTime;
                 bool timeRequirementMet = transition.ForceInstantTransition || stateTime > requiredTime;
 
                 if (guardPassed && timeRequirementMet)
                 {
-                    if (states.TryGetValue(transition.To, out var targetState) && targetState.IsOnCooldown())
-                        continue;
-                    
-                    transition.StartCooldown();
-                    PerformTransition(transition.To);
+                    // Resolve target to leaf
+                    T targetLeaf = ResolveToLeaf(transition.To);
 
-                    TransitionTriggered?.Invoke(transition.From, transition.To);
+                    if (states.TryGetValue(targetLeaf, out var targetState) && targetState.IsOnCooldown())
+                        continue;
+
+                    transition.StartCooldown();
+                    PerformTransition(targetLeaf);
+
+                    TransitionTriggered?.Invoke(transition.From, targetLeaf);
                     transition.OnTriggered?.Invoke();
                     return;
                 }
@@ -118,5 +125,5 @@ public partial class StateMachine<T>
         {
             isProcessingEvent = false;
         }
-    }   
+    }
 }
