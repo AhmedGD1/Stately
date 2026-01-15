@@ -865,9 +865,62 @@ int activeCooldowns = fsm.GetActiveCooldownCount();
 GD.Print($"Active cooldowns: {activeCooldowns}");
 ```
 
-## 📄 License
+## 📜 License
 
-This is a custom FSM library for Godot. Feel free to use and modify for your projects!
+Custom License - See [LICENSE](LICENSE) file for full terms.
+
+### TL;DR - You can:
+✅ Use this FSM freely in any project (personal or commercial)
+✅ Modify it for your needs
+✅ Ship it in your games without crediting in-game
+
+### You must:
+⚠️ Give credit if you **advertise** that your game uses this FSM
+⚠️ Not claim it as your own creation
+
+### Example:
+❌ NO credit needed: Just using the FSM in your game
+✅ Credit needed: "Made with [FSM Name]" in your Steam page/trailer
+✅ Credit format: "Uses [FSM Name] by [Your Name]" or link to GitHub
+
+---
+
+**Simple rule:** Use freely, credit if you promote it. Don't steal. ✌️
+```
+
+---
+
+## 🎯 **Real-World Examples**
+
+### ✅ **No Credit Required:**
+```
+User makes a game using your FSM
+→ Releases it on Steam
+→ Game description: "A fast-paced action game..."
+→ NO credit needed (not mentioning the FSM)
+```
+
+### ✅ **Credit Required:**
+```
+User makes a game using your FSM
+→ Releases it on Steam
+→ Game description: "Built with a powerful FSM system..."
+→ MUST credit: "Uses [FSM Name] by [Your Name]"
+```
+
+### ✅ **Credit Required:**
+```
+User makes a YouTube tutorial
+→ "How to build an AI using this FSM library"
+→ MUST credit in video description
+```
+
+### ❌ **Prohibited:**
+```
+User forks your repo
+→ Renames it to "SuperFSM"
+→ Claims they created it
+→ VIOLATION
 
 ## 🤝 Contributing
 
