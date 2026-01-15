@@ -58,7 +58,7 @@ public partial class StateMachine<T>
         return childState;
     }
 
-    public State<T> ConfigureState(T id, Action<State<T>> configure)
+    public State<T> ConfigState(T id, Action<State<T>> configure)
     {
         if (configure == null)
         {
@@ -360,4 +360,5 @@ public partial class StateMachine<T>
         return errors.Count == 0;
     }
 }
+
 
