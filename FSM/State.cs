@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FiniteStateMachine;
+namespace Stately;
 
 public class State<T> where T : Enum
 {
