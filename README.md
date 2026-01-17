@@ -100,10 +100,10 @@ public partial class Player : CharacterBody2D
 
         // Add transition with condition
         fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-            .SetCondition(sm => Input.IsActionPressed("move_right"));
+            .When(sm => Input.IsActionPressed("move_right"));
 
         // Set initial state and start
-        fsm.SetInitialId(PlayerState.Idle);
+        fsm.SetInitialState(PlayerState.Idle);
         fsm.Start();
     }
 
@@ -156,7 +156,7 @@ Transitions define how to move between states:
 ```csharp
 // Condition-based transition
 fsm.AddTransition(PlayerState.Idle, PlayerState.Walking)
-    .SetCondition(sm => velocity.Length() > 0);
+    .When(sm => velocity.Length() > 0);
 
 // Event-based transition
 fsm.AddTransition(PlayerState.Idle, PlayerState.Jumping)
@@ -164,10 +164,11 @@ fsm.AddTransition(PlayerState.Idle, PlayerState.Jumping)
 
 // Guarded transition with priority
 fsm.AddTransition(PlayerState.Walking, PlayerState.Attacking)
-    .SetGuard(sm => HasWeapon())                // Checked FIRST
-    .SetCondition(sm => AttackPressed())        // Then this
-    .SetPriority(10)                            // Higher = checked first
-    .SetCooldown(0.5f);                         // 500ms cooldown
+    .If(sm => HasWeapon())               // Checked FIRST
+    .When(sm => AttackPressed())        // Then this
+    .Do(() => GD.Print("Hello"))        // Call a method on trigger
+    .SetPriority(10)                    // Higher = checked first
+    .SetCooldown(0.5f);                 // 500ms cooldown
 ```
 
 **Guard vs Condition:**
@@ -182,22 +183,20 @@ Choose your preferred style:
 ```csharp
 fsm.AddState(PlayerState.Idle)
     .OnEnter(() => PlayIdleAnimation())
-    .AddTransition(PlayerState.Walking)
-        .SetCondition(sm => IsMoving());
 ```
 
 **Method 2: Configuration Lambdas**
 ```csharp
 // Configure state - auto-creates if doesn't exist
-fsm.ConfigState(PlayerState.Idle, state => {
-    state.OnEnter(() => PlayIdleAnimation())
+fsm.ConfigState(PlayerState.Idle, s => {
+    s.OnEnter(() => PlayIdleAnimation())
          .MinDuration(0.1f)
          .AddTags("grounded");
 });
 
 // Configure transition - auto-creates if doesn't exist
-fsm.ConfigTransition(PlayerState.Idle, PlayerState.Walking, transition => {
-    transition.SetCondition(sm => IsMoving())
+fsm.ConfigTransition(PlayerState.Idle, PlayerState.Walking, t => {
+    t.when(sm => IsMoving())
               .SetPriority(5);
 });
 ```
@@ -256,17 +255,17 @@ Transitions automatically resolve parent states to their default children:
 ```csharp
 // Transition to parent → automatically enters Combat.CombatIdle
 fsm.AddTransition(GameState.MovementWalking, GameState.Combat)
-    .SetCondition(fsm => EnemyNearby());
+    .When(fsm => EnemyNearby());
 
 // Sibling transitions (efficient - parent stays active)
 fsm.AddTransition(GameState.CombatIdle, GameState.CombatAttacking)
-    .SetCondition(fsm => AttackPressed());
+    .When(fsm => AttackPressed());
 // Only calls: Idle.Exit() → Attacking.Enter()
 // Combat remains active!
 
 // Cross-parent transitions (full hierarchy change)
 fsm.AddTransition(GameState.CombatIdle, GameState.MovementWalking)
-    .SetCondition(fsm => NoEnemies());
+    .When(fsm => NoEnemies());
 // Calls: Idle.Exit() → Combat.Exit() → Movement.Enter() → Walking.Enter()
 ```
 
@@ -515,6 +514,7 @@ foreach (var targetState in validTransitions)
 ```csharp
 // Start/Stop
 fsm.Start();
+fsm.Start(T id) // Start the state machine at a specific id;
 fsm.Stop();
 
 // Pause/Resume
@@ -539,13 +539,13 @@ fsm.Reset();
 Control when state updates occur:
 
 ```csharp
-// Update in _Process (default)
+// Update in _Process
 fsm.AddState(PlayerState.Idle)
-    .SetProcessMode(FSMProcessMode.Idle);
+    .ProcessIn(FSMProcessMode.Idle);
 
-// Update in _PhysicsProcess
+// Update in _PhysicsProcess (default)
 fsm.AddState(PlayerState.Falling)
-    .SetProcessMode(FSMProcessMode.Fixed);
+    .ProcessIn(FSMProcessMode.Fixed);
 
 // In your node:
 public override void _Process(double delta)
@@ -585,7 +585,7 @@ Transitions that work from any state:
 ```csharp
 // Can transition to Death from any state
 fsm.AddGlobalTransition(PlayerState.Death)
-    .SetCondition(sm => health <= 0)
+    .When(sm => health <= 0)
     .HighestPriority();
 ```
 
@@ -639,7 +639,7 @@ fsm.StateChanged += (from, to) => GD.Print($"Changed: {from} → {to}");
 fsm.TransitionTriggered += (from, to) => GD.Print($"Triggered: {from} → {to}");
 
 // Custom event listeners
-fsm.OnEvent("player_hit", () => FlashSprite());
+fsm.AddListener("player_hit", () => FlashSprite());
 ```
 
 ### State Templates
@@ -656,8 +656,8 @@ var combatTemplate = new StateTemplate<PlayerState>()
     .WithMinDuration(0.2f);
 
 // Apply to multiple states
-fsm.AddState(PlayerState.Attacking).ApplyTemplate(combatTemplate);
-fsm.AddState(PlayerState.Blocking).ApplyTemplate(combatTemplate);
+fsm.AddState(PlayerState.Attacking).From(combatTemplate);
+fsm.AddState(PlayerState.Blocking).From(combatTemplate);
 ```
 
 ### Bulk Transitions
@@ -679,7 +679,7 @@ fsm.AddResetTransition(PlayerState.GameOver);
 
 // Self transition (restart same state)
 fsm.AddSelfTransition(PlayerState.Attacking)
-   .SetCondition(sm => CanCombo());
+   .When(sm => CanCombo());
 ```
 
 ### Cooldowns
@@ -713,7 +713,7 @@ fsm.ResetAllCooldowns();
 if (fsm.IsCurrentState(PlayerState.Attacking))
     GD.Print("Currently attacking!");
 
-var currentId = fsm.GetCurrentId();
+var currentId = fsm.CurrentStateId;
 var currentState = fsm.CurrentState;
 
 // Tag queries
@@ -738,8 +738,8 @@ float remaining = fsm.GetRemainingTime();
 ```csharp
 public class GodotLogger : ILogger
 {
-    public void LogError(string text) => GD.PrintErr($"[FSM ERROR] {text}");
-    public void LogWarning(string text) => GD.Print($"[FSM WARNING] {text}");
+    public void LogError(string text) => GD.PushError(text);
+    public void LogWarning(string text) => GD.PushWarning(text);
 }
 
 var fsm = new StateMachine<PlayerState>(new GodotLogger());
@@ -786,7 +786,7 @@ foreach (var entry in history)
 if (!fsm.ValidateHierarchy(out var errors))
 {
     foreach (var error in errors)
-        GD.PrintErr(error);
+        GD.PushError(error);
 }
 
 // Check cooldowns
@@ -795,90 +795,6 @@ GD.Print($"Active cooldowns: {activeCooldowns}");
 ```
 
 ---
-
-## 💡 Examples
-
-### Enemy AI with Hierarchical States
-
-```csharp
-public enum EnemyState
-{
-    // Root states
-    Patrol,
-    Combat,
-    
-    // Patrol children
-    PatrolWalking,
-    PatrolIdle,
-    
-    // Combat children
-    CombatChasing,
-    CombatAttacking,
-    CombatRetreating
-}
-
-public partial class Enemy : CharacterBody2D
-{
-    private StateMachine<EnemyState> fsm;
-    private Player player;
-    
-    public override void _Ready()
-    {
-        fsm = new StateMachine<EnemyState>();
-        
-        // Patrol parent
-        var patrol = fsm.AddState(EnemyState.Patrol)
-            .OnEnter(() => ClearTarget());
-        
-        // Patrol children
-        fsm.AddChildState(EnemyState.Patrol, EnemyState.PatrolWalking)
-            .OnUpdate(delta => PatrolMovement(delta));
-        
-        fsm.AddChildState(EnemyState.Patrol, EnemyState.PatrolIdle)
-            .TimeoutAfter(2.0f, EnemyState.PatrolWalking);
-        
-        patrol.SetDefaultChild(EnemyState.PatrolWalking);
-        
-        // Combat parent
-        var combat = fsm.AddState(EnemyState.Combat)
-            .OnEnter(() => SetTarget(player));
-        
-        // Combat children
-        fsm.AddChildState(EnemyState.Combat, EnemyState.CombatChasing)
-            .OnUpdate(delta => ChaseTarget(delta));
-        
-        fsm.AddChildState(EnemyState.Combat, EnemyState.CombatAttacking)
-            .OnEnter(() => Attack())
-            .MinDuration(0.5f);
-        
-        fsm.AddChildState(EnemyState.Combat, EnemyState.CombatRetreating)
-            .OnUpdate(delta => Retreat(delta));
-        
-        combat.SetDefaultChild(EnemyState.CombatChasing);
-        
-        // Transitions
-        fsm.AddTransition(EnemyState.Patrol, EnemyState.Combat)
-            .SetCondition(sm => PlayerInRange());
-        
-        fsm.AddTransition(EnemyState.Combat, EnemyState.Patrol)
-            .SetCondition(sm => PlayerTooFar());
-        
-        fsm.AddTransition(EnemyState.CombatChasing, EnemyState.CombatAttacking)
-            .SetCondition(sm => InAttackRange());
-        
-        fsm.AddTransition(EnemyState.CombatAttacking, EnemyState.CombatChasing)
-            .SetCondition(sm => !InAttackRange());
-        
-        fsm.SetInitialId(EnemyState.Patrol);
-        fsm.Start();
-    }
-    
-    public override void _Process(double delta)
-    {
-        fsm.UpdateIdle((float)delta);
-    }
-}
-```
 
 ### Combat System with Data
 
@@ -909,8 +825,8 @@ public partial class Fighter : CharacterBody2D
         
         // Self-transition for combos
         fsm.AddSelfTransition(FighterState.Attacking)
-            .SetCondition(sm => CanCombo())
-            .OnTrigger(() => IncrementCombo());
+            .When(sm => CanCombo())
+            .Do(() => IncrementCombo());
         
         fsm.Start();
     }
@@ -960,7 +876,7 @@ public partial class Fighter : CharacterBody2D
 **✅ Credit needed:**
 - Game description: "Built with a powerful FSM system..."
 - YouTube tutorial about this FSM
-- **Credit format**: `Uses Stately by [Ahmed GD]` or link to GitHub
+- **Credit format**: `Uses Stately by [Ahmed GD]`, link to GitHub or link to youtube chunnel
 
 **❌ Prohibited:**
 - Claiming as your own
