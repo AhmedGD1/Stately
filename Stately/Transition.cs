@@ -2,7 +2,6 @@ using System;
 
 namespace Stately
 {
-
     public class Transition<T> where T : Enum
     {
         private static int globalInsertionCounter = 0;
@@ -48,7 +47,7 @@ namespace Stately
             InsertionIndex = globalInsertionCounter++;
         }
 
-        public Transition<T> OnTrigger(Action method)
+        public Transition<T> Do(Action method)
         {
             OnTriggered = method;
             return this;
@@ -65,13 +64,13 @@ namespace Stately
             return OnEvent(eventName.ToString());
         }
 
-        public Transition<T> SetCondition(Predicate<StateMachine<T>> condition)
+        public Transition<T> When(Predicate<StateMachine<T>> condition)
         {
             Condition = condition;
             return this;
         }
 
-        public Transition<T> SetGuard(Predicate<StateMachine<T>> guard)
+        public Transition<T> If(Predicate<StateMachine<T>> guard)
         {
             Guard = guard;
             return this;
