@@ -66,8 +66,7 @@ namespace Stately
                 return null;
             }
 
-            State<T> state;
-            if (!states.TryGetValue(id, out state))
+            if (!states.TryGetValue(id, out State<T> state))
             {
                 state = AddState(id);
             }

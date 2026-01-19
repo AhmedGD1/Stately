@@ -106,43 +106,27 @@ namespace Stately
             return AddTransition(id, id);
         }
 
-        public void AddTransitions(T[] from, T to, Predicate<StateMachine<T>> condition)
+        public void AddTransitionsFrom(IEnumerable<T> fromStates, T toState, Action<Transition<T>> config)
         {
-            if (from == null) 
+            foreach (var from in fromStates)
             {
-                logger.LogError("from array is null");
-                return;
+                ConfigTransition(from, toState, t => 
+                    config?.Invoke(t)
+                );
             }
-
-            for (int i = 0; i < from.Length; i++)
-                AddTransition(from[i], to)?.When(condition);
         }
 
-        public void AddTagTransition(string tag, T to, Predicate<StateMachine<T>> condition)
+        public void AddTagTransitions(IEnumerable<string> tags, T toState, Action<Transition<T>> config)
         {
-            foreach (var kvp in states)
+            foreach (string tag in tags)
             {
-                if (kvp.Value.HasTag(tag))
+                foreach (var state in GetStatesWithTag(tag))
                 {
-                    AddTransition(kvp.Value.Id, to).When(condition);
+                    ConfigTransition(state.Id, toState, t => 
+                        config?.Invoke(t)
+                    );
                 }
             }
-        }
-
-        public void AddTagTransition(string tag, T to, string eventName)
-        {
-            foreach (var kvp in states)
-            {
-                if (kvp.Value.HasTag(tag))
-                {
-                    AddTransition(kvp.Value.Id, to).OnEvent(eventName);
-                }
-            }
-        }
-
-        public void AddTagTransition<TEvent>(string tag, T to, TEvent eventName) where TEvent : Enum
-        {
-            AddTagTransition(tag, to, eventName.ToString());
         }
 
         public Transition<T> AddGlobalTransition(T to)
@@ -468,5 +452,4 @@ namespace Stately
             return IsInHierarchy(fromStateId);
         }
     }
-
 }
