@@ -28,30 +28,30 @@ A production-ready finite state machine library designed for complex game logic,
 
 ## ✨ Features
 
-### 🆕 New in Latest Version
+### New in Latest Version
 - **Hierarchical States**: Unlimited nesting depth with parent-child relationships
 - **Smart Transitions**: Automatic child resolution when transitioning to parent states
 - **Type-Based Data Storage**: No boxing for reference types, cleaner API
 - **Enhanced Manual Control**: Force transitions, validate before transitioning, and more
 
 ### Core Features
-- ✅ **Type-Safe**: Generic implementation using C# enums for state IDs
-- ✅ **Flexible Transitions**: Condition-based, event-driven, or time-based
-- ✅ **Guards & Conditions**: Pre-validation and transition logic separation
-- ✅ **Cooldowns**: Built-in cooldown system for states and transitions
-- ✅ **State Locking**: Prevent unwanted transitions with flexible lock modes
-- ✅ **State History**: Navigate backward through state history
-- ✅ **Global Transitions**: Define transitions that work from any state
-- ✅ **State Templates**: Reusable state configurations
-- ✅ **Timeout System**: Automatic state timeouts with custom handlers
-- ✅ **Event System**: Event-driven transitions and listeners
-- ✅ **Process Modes**: Support for `_Process` (Idle) and `_PhysicsProcess` (Fixed) updates
-- ✅ **Priority System**: Control transition evaluation order
-- ✅ **Tags**: Organize and query states using tags
+-  **Type-Safe**: Generic implementation using C# enums for state IDs
+-  **Flexible Transitions**: Condition-based, event-driven, or time-based
+-  **Guards & Conditions**: Pre-validation and transition logic separation
+-  **Cooldowns**: Built-in cooldown system for states and transitions
+-  **State Locking**: Prevent unwanted transitions with flexible lock modes
+-  **State History**: Navigate backward through state history
+-  **Global Transitions**: Define transitions that work from any state
+-  **State Templates**: Reusable state configurations
+-  **Timeout System**: Automatic state timeouts with custom handlers
+-  **Event System**: Event-driven transitions and listeners
+-  **Process Modes**: Support for `_Process` (Idle) and `_PhysicsProcess` (Fixed) updates
+-  **Priority System**: Control transition evaluation order
+-  **Tags**: Organize and query states using tags
 
 ---
 
-## 📦 Installation
+##  Installation
 
 1. Download or clone this repository
 2. Copy all `.cs` files into your Godot C# project (e.g., `res://Scripts/StateMachine/`)
@@ -64,7 +64,7 @@ A production-ready finite state machine library designed for complex game logic,
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Basic Example
 
@@ -121,7 +121,7 @@ public partial class Player : CharacterBody2D
 
 ---
 
-## 📖 Core Concepts
+##  Core Concepts
 
 ### States
 
@@ -203,7 +203,7 @@ fsm.ConfigTransition(PlayerState.Idle, PlayerState.Walking, t => {
 
 ---
 
-## 🆕 Hierarchical States (NEW)
+## Hierarchical States (NEW)
 
 Organize complex behaviors with parent-child state relationships:
 
@@ -330,7 +330,7 @@ if (!fsm.ValidateHierarchy(out var errors))
 
 ---
 
-## 🆕 Type-Based Data Storage (IMPROVED)
+## Type-Based Data Storage (IMPROVED)
 
 Store data without string keys and eliminate boxing:
 
@@ -412,11 +412,11 @@ fsm.AddState(GameState.Damaged)
 ```
 
 **Benefits:**
-- ✅ No string keys to manage
-- ✅ Type-safe (compiler catches errors)
-- ✅ No boxing for reference types
-- ✅ IntelliSense/autocomplete works
-- ✅ Forces better code organization
+- No string keys to manage
+- Type-safe (compiler catches errors)
+- No boxing for reference types
+- IntelliSense/autocomplete works
+- Forces better code organization
 
 **Note:** Can only store ONE instance per type. Use wrapper classes for multiple values:
 
@@ -433,7 +433,7 @@ state.SetData(new CombatStats { Health = 100, Mana = 50, Stamina = 75 });
 
 ---
 
-## 🆕 Manual Control (IMPROVED)
+## Manual Control (IMPROVED)
 
 New methods for direct FSM manipulation:
 
@@ -532,7 +532,7 @@ fsm.Reset();
 
 ---
 
-## 🛠️ Advanced Features
+## Advanced Features
 
 ### Process Modes
 
@@ -747,7 +747,7 @@ var fsm = new StateMachine<PlayerState>(new GodotLogger());
 
 ---
 
-## 📚 Best Practices
+## Best Practices
 
 1. **Use Enums**: Always use enums for state IDs for type safety
 2. **Hierarchical Organization**: Group related states under parent states
@@ -762,7 +762,7 @@ var fsm = new StateMachine<PlayerState>(new GodotLogger());
 
 ---
 
-## 🐛 Debugging Tips
+## Debugging Tips
 
 ```csharp
 // Log all state changes
@@ -854,7 +854,7 @@ public partial class Fighter : CharacterBody2D
 
 ---
 
-## 📜 License
+## License
 
 **Custom License** - See [LICENSE](LICENSE) file for full terms.
 
@@ -884,7 +884,7 @@ public partial class Fighter : CharacterBody2D
 
 ---
 
-**Simple rule:** Use freely, credit if you promote it. Don't steal. ✌️
+**Simple rule:** Use freely, credit if you promote it. Don't steal.
 
 ---
 
