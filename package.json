@@ -1,0 +1,23 @@
+{
+  "name": "com.stately.fsm",
+  "version": "1.0.0",
+  "displayName": "Stately",
+  "description": "A lightweight, fluent finite state machine for Unity. Supports transitions with conditions, guards, priority, min duration, timeout, lock/pause, and an event system.",
+  "unity": "2021.3",
+  "author": {
+    "name": "Ahmed_GD",
+    "email": "aag75yssar@gmail.com",
+    "url": "https://github.com/AhmedGD1/stately"
+  },
+  "keywords": [
+    "fsm",
+    "state machine",
+    "ai",
+    "gameplay"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AhmedGD1/stately.git"
+  }
+}
