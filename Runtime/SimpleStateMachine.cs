@@ -157,6 +157,8 @@ namespace Stately
 
         private void UpdateCachedTransitions()
         {
+            if (currentState == null) return;
+            
             cachedTransitions.Clear();
             cachedTransitions.AddRange(currentState.Transitions);
             cachedTransitions.AddRange(globalTransitions);
@@ -228,3 +230,4 @@ namespace Stately
         #endregion
     }
 }
+
